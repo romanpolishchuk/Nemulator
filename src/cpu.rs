@@ -1,5 +1,27 @@
 mod opcodes;
+use std::fmt::format;
+use std::fs::{File, OpenOptions};
+use std::io::Write;
+
 use opcodes::OP;
+
+use crate::Memory;
+
+enum OPMode {
+    A,
+    Abs,
+    AbsX,
+    AbsY,
+    Imm,
+    Impl,
+    Ind,
+    XInd,
+    IndY,
+    Rel,
+    Zpg,
+    ZpgX,
+    ZpgY,
+}
 
 pub struct CPU {
     accumulator: u8,
@@ -8,9 +30,31 @@ pub struct CPU {
     program_counter: u16,
     stack_pointer: u8,
     status_register: u8,
+    cycle: u64,
+    log_file: File,
 }
 
 impl CPU {
+    pub fn new() -> CPU {
+        let mut log_file = OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .open("log.txt")
+            .unwrap();
+
+        CPU {
+            accumulator: 0,
+            index_x: 0,
+            index_y: 0,
+            program_counter: 0xC000,
+            stack_pointer: 0xFD,
+            status_register: 0b0010_0000,
+            cycle: 0,
+            log_file,
+        }
+    }
+
     fn get_flag_carry(&self) -> bool {
         self.status_register & 0b1 == 0b1
     }
@@ -81,7 +125,62 @@ impl CPU {
         self.status_register &= 0b0111_1111;
     }
 
-    pub fn execute_instruction(&mut self, op: u8, ram: &mut Vec<u8>) {
+    fn log_instr(&mut self, bytes: Vec<u8>, mode: OPMode, name: &str) {
+        let mut line = String::from("");
+        line += &format!("{:04X}  ", self.program_counter);
+        for byte in bytes.iter() {
+            line += &format!("{:02X} ", byte);
+        }
+        for _ in 0..(3 - bytes.len()) {
+            line += "   ";
+        }
+
+        line += &format!("{} ", name);
+        line += &format!(
+            "{}",
+            match mode {
+                OPMode::A => String::from("A"),
+                OPMode::Abs => format!("${:02X}{:02X}", bytes[2], bytes[1]),
+                OPMode::AbsX => format!("${:02X}{:02X}, X", bytes[2], bytes[1]),
+                OPMode::AbsY => format!("${:02X}{:02X}, Y", bytes[2], bytes[1]),
+                OPMode::Imm => format!("#${:02X}", bytes[1]),
+                OPMode::Impl => String::from(""),
+                OPMode::Ind => format!("(${:02X}{:02X})", bytes[2], bytes[1]),
+                OPMode::XInd => format!("(${:02X},X)", bytes[1]),
+                OPMode::IndY => format!("(${:02X}),Y", bytes[1]),
+                OPMode::Rel => format!(
+                    "$({:04X})",
+                    (self.program_counter as i32 + 2 as i32 + (bytes[1] as i8) as i32) as u16
+                ),
+                OPMode::Zpg => format!("${:02X}", bytes[1]),
+                OPMode::ZpgX => format!("${:02X},X", bytes[1]),
+                OPMode::ZpgY => format!("${:02X},Y", bytes[1]),
+            }
+        );
+
+        while line.len() < 48 {
+            line += " ";
+        }
+
+        line += &format!(
+            "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:  0,  0 CYC:{}",
+            self.accumulator,
+            self.index_x,
+            self.index_y,
+            self.status_register,
+            self.stack_pointer,
+            self.cycle
+        );
+        writeln!(self.log_file, "{}", line).unwrap();
+    }
+
+    pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
+        if self.cycle > emulator_cycle {
+            return;
+        }
+
+        let op = memory.get(self.program_counter);
+
         match OP::from(op) {
             OP::ADC_imm => todo!(),
             OP::ADC_zpg => todo!(),
