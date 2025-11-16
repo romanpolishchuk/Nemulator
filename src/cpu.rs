@@ -11,8 +11,87 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn execute_instruction(&self, op: u8) {
+    fn get_flag_carry(&self) -> bool {
+        self.status_register & 0b1 == 0b1
+    }
+    fn set_flag_carry(&mut self) {
+        self.status_register |= 0b1;
+    }
+    fn reset_flag_carry(&mut self) {
+        self.status_register &= 0b1111_1110;
+    }
+
+    fn get_flag_zero(&self) -> bool {
+        self.status_register & 0b10 == 0b10
+    }
+    fn set_flag_zero(&mut self) {
+        self.status_register |= 0b10;
+    }
+    fn reset_flag_zero(&mut self) {
+        self.status_register &= 0b1111_1101;
+    }
+
+    fn get_flag_interrupt_disable(&self) -> bool {
+        self.status_register & 0b100 == 0b100
+    }
+    fn set_flag_interrupt_disable(&mut self) {
+        self.status_register |= 0b100;
+    }
+    fn reset_flag_interrupt_disable(&mut self) {
+        self.status_register &= 0b1111_1011;
+    }
+
+    fn get_flag_decimal(&self) -> bool {
+        self.status_register & 0b1000 == 0b1000
+    }
+    fn set_flag_decimal(&mut self) {
+        self.status_register |= 0b1000;
+    }
+    fn reset_flag_decimal(&mut self) {
+        self.status_register &= 0b1111_0111;
+    }
+
+    fn get_flag_b(&self) -> bool {
+        self.status_register & 0b1000_0 == 0b1000_0
+    }
+    fn set_flag_b(&mut self) {
+        self.status_register |= 0b1000_0;
+    }
+    fn reset_flag_b(&mut self) {
+        self.status_register &= 0b1110_1111;
+    }
+
+    fn get_flag_overflow(&self) -> bool {
+        self.status_register & 0b1000_00 == 0b1000_000
+    }
+    fn set_flag_overflow(&mut self) {
+        self.status_register |= 0b1000_000;
+    }
+    fn reset_flag_overflow(&mut self) {
+        self.status_register &= 0b1011_1111;
+    }
+
+    fn get_flag_negative(&self) -> bool {
+        self.status_register & 0b1000_0000 == 0b1000_0000
+    }
+    fn set_flag_negative(&mut self) {
+        self.status_register |= 0b1000_0000;
+    }
+    fn reset_flag_negative(&mut self) {
+        self.status_register &= 0b0111_1111;
+    }
+
+    pub fn execute_instruction(&mut self, op: u8, ram: &mut Vec<u8>) {
         match OP::from(op) {
+            OP::ADC_imm => todo!(),
+            OP::ADC_zpg => todo!(),
+            OP::ADC_zpg_X => todo!(),
+            OP::ADC_abs => todo!(),
+            OP::ADC_abs_X => todo!(),
+            OP::ADC_abs_Y => todo!(),
+            OP::ADC_X_ind => todo!(),
+            OP::ADC_ind_Y => todo!(),
+
             OP::BRK_impl => todo!(),
             OP::ORA_X_ind => todo!(),
             OP::JAM_0x2 => todo!(),
@@ -110,35 +189,27 @@ impl CPU {
             OP::LSR_abs_X => todo!(),
             OP::SRE_abs_X => todo!(),
             OP::RTS_impl => todo!(),
-            OP::ADC_X_ind => todo!(),
             OP::JAM_0x62 => todo!(),
             OP::RRA_X_ind => todo!(),
             OP::NOP_zpg_0x64 => todo!(),
-            OP::ADC_zpg => todo!(),
             OP::ROR_zpg => todo!(),
             OP::RRA_zpg => todo!(),
             OP::PLA_impl => todo!(),
-            OP::ADC_imm => todo!(),
             OP::ROR_A => todo!(),
             OP::ARR_imm => todo!(),
             OP::JMP_ind => todo!(),
-            OP::ADC_abs => todo!(),
             OP::ROR_abs => todo!(),
             OP::RRA_abs => todo!(),
             OP::BVS_rel => todo!(),
-            OP::ADC_ind_Y => todo!(),
             OP::JAM_0x72 => todo!(),
             OP::RRA_ind_Y => todo!(),
             OP::NOP_zpg_X_0x74 => todo!(),
-            OP::ADC_zpg_X => todo!(),
             OP::ROR_zpg_X => todo!(),
             OP::RRA_zpg_X => todo!(),
             OP::SEI_impl => todo!(),
-            OP::ADC_abs_Y => todo!(),
             OP::NOP_impl_0x7a => todo!(),
             OP::RRA_abs_Y => todo!(),
             OP::NOP_abs_X_0x7c => todo!(),
-            OP::ADC_abs_X => todo!(),
             OP::ROR_abs_X => todo!(),
             OP::RRA_abs_X => todo!(),
             OP::NOP_imm_0x80 => todo!(),
