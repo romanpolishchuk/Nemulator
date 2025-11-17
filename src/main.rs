@@ -56,8 +56,8 @@ fn main() {
     };
 
     let mut emulator = Emulator {
+        cpu: CPU::new(&memory),
         memory,
-        cpu: CPU::new(),
         cycle: 0,
     };
 

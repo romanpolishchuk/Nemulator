@@ -35,8 +35,8 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new() -> CPU {
-        let mut log_file = OpenOptions::new()
+    pub fn new(memory: &Memory) -> CPU {
+        let log_file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
@@ -47,7 +47,7 @@ impl CPU {
             accumulator: 0,
             index_x: 0,
             index_y: 0,
-            program_counter: 0xC000,
+            program_counter: u16::from_le_bytes([memory.get(0xFFFC), memory.get(0xFFFD)]),
             stack_pointer: 0xFD,
             status_register: 0b0010_0000,
             cycle: 0,
@@ -174,11 +174,17 @@ impl CPU {
         writeln!(self.log_file, "{}", line).unwrap();
     }
 
-    fn abs_rmw<F>(&mut self, memory: &mut Memory, callback: F) -> u8
+    fn abs_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
     where
         F: Fn(u8) -> u8,
     {
-        self.cycle += 5;
+        if self.cycle == emulator_cycle {
+            self.cycle += 6;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -192,14 +198,26 @@ impl CPU {
 
         memory.set(address, value);
 
-        value
+        self.log_instr(
+            vec![op, address_lb, address_hb],
+            OPMode::Abs,
+            &OP::from(op).to_string(),
+        );
+
+        Some(value)
     }
 
-    fn absx_rmw<F>(&mut self, memory: &mut Memory, callback: F) -> u8
+    fn absx_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
     where
         F: Fn(u8) -> u8,
     {
-        self.cycle += 6;
+        if self.cycle == emulator_cycle {
+            self.cycle += 7;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -214,14 +232,26 @@ impl CPU {
 
         memory.set(address, value);
 
-        value
+        self.log_instr(
+            vec![op, address_lb, address_hb],
+            OPMode::AbsX,
+            &OP::from(op).to_string(),
+        );
+
+        Some(value)
     }
 
-    fn zpg_rmw<F>(&mut self, memory: &mut Memory, callback: F)
+    fn zpg_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
     where
         F: Fn(u8) -> u8,
     {
-        self.cycle += 4;
+        if self.cycle == emulator_cycle {
+            self.cycle += 5;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
 
         let address = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -231,13 +261,23 @@ impl CPU {
         value = callback(value);
 
         memory.set(address.into(), value);
+
+        self.log_instr(vec![op, address], OPMode::Zpg, &OP::from(op).to_string());
+
+        Some(value)
     }
 
-    fn zpgx_rmw<F>(&mut self, memory: &mut Memory, callback: F)
+    fn zpgx_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
     where
         F: Fn(u8) -> u8,
     {
-        self.cycle += 5;
+        if self.cycle == emulator_cycle {
+            self.cycle += 6;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
 
         let mut address = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -249,382 +289,385 @@ impl CPU {
         value = callback(value);
 
         memory.set(address.into(), value);
+
+        self.log_instr(vec![op, address], OPMode::ZpgX, &OP::from(op).to_string());
+
+        Some(value)
     }
 
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
-        if self.cycle > emulator_cycle {
+        if self.cycle > emulator_cycle.saturating_sub(1) {
             return;
         }
 
         let op = memory.get(self.program_counter);
         self.program_counter += 1;
-        self.cycle += 1;
 
         match OP::from(op) {
-            OP::ADC_X_ind => todo!(),
-            OP::ADC_abs => todo!(),
-            OP::ADC_abs_X => todo!(),
-            OP::ADC_abs_Y => todo!(),
-            OP::ADC_imm => todo!(),
-            OP::ADC_ind_Y => todo!(),
-            OP::ADC_zpg => todo!(),
-            OP::ADC_zpg_X => todo!(),
+            OP::ADC_X_ind => todo!("{:#04X}", op),
+            OP::ADC_abs => todo!("{:#04X}", op),
+            OP::ADC_abs_X => todo!("{:#04X}", op),
+            OP::ADC_abs_Y => todo!("{:#04X}", op),
+            OP::ADC_imm => todo!("{:#04X}", op),
+            OP::ADC_ind_Y => todo!("{:#04X}", op),
+            OP::ADC_zpg => todo!("{:#04X}", op),
+            OP::ADC_zpg_X => todo!("{:#04X}", op),
 
-            OP::ALR_imm => todo!(),
+            OP::ALR_imm => todo!("{:#04X}", op),
 
-            OP::ANC_imm_0x0b => todo!(),
-            OP::ANC_imm_0x2b => todo!(),
+            OP::ANC_imm_0x0b => todo!("{:#04X}", op),
+            OP::ANC_imm_0x2b => todo!("{:#04X}", op),
 
-            OP::AND_X_ind => todo!(),
-            OP::AND_abs => todo!(),
-            OP::AND_abs_X => todo!(),
-            OP::AND_abs_Y => todo!(),
-            OP::AND_imm => todo!(),
-            OP::AND_ind_Y => todo!(),
-            OP::AND_zpg => todo!(),
-            OP::AND_zpg_X => todo!(),
+            OP::AND_X_ind => todo!("{:#04X}", op),
+            OP::AND_abs => todo!("{:#04X}", op),
+            OP::AND_abs_X => todo!("{:#04X}", op),
+            OP::AND_abs_Y => todo!("{:#04X}", op),
+            OP::AND_imm => todo!("{:#04X}", op),
+            OP::AND_ind_Y => todo!("{:#04X}", op),
+            OP::AND_zpg => todo!("{:#04X}", op),
+            OP::AND_zpg_X => todo!("{:#04X}", op),
 
-            OP::ANE_imm => todo!(),
+            OP::ANE_imm => todo!("{:#04X}", op),
 
-            OP::ARR_imm => todo!(),
+            OP::ARR_imm => todo!("{:#04X}", op),
 
-            OP::ASL_A => todo!(),
-            OP::ASL_abs => todo!(),
-            OP::ASL_abs_X => todo!(),
-            OP::ASL_zpg => todo!(),
-            OP::ASL_zpg_X => todo!(),
+            OP::ASL_A => todo!("{:#04X}", op),
+            OP::ASL_abs => todo!("{:#04X}", op),
+            OP::ASL_abs_X => todo!("{:#04X}", op),
+            OP::ASL_zpg => todo!("{:#04X}", op),
+            OP::ASL_zpg_X => todo!("{:#04X}", op),
 
-            OP::BCC_rel => todo!(),
+            OP::BCC_rel => todo!("{:#04X}", op),
 
-            OP::BCS_rel => todo!(),
+            OP::BCS_rel => todo!("{:#04X}", op),
 
-            OP::BEQ_rel => todo!(),
+            OP::BEQ_rel => todo!("{:#04X}", op),
 
-            OP::BIT_abs => todo!(),
-            OP::BIT_zpg => todo!(),
+            OP::BIT_abs => todo!("{:#04X}", op),
+            OP::BIT_zpg => todo!("{:#04X}", op),
 
-            OP::BMI_rel => todo!(),
+            OP::BMI_rel => todo!("{:#04X}", op),
 
-            OP::BNE_rel => todo!(),
+            OP::BNE_rel => todo!("{:#04X}", op),
 
-            OP::BPL_rel => todo!(),
+            OP::BPL_rel => todo!("{:#04X}", op),
 
-            OP::BRK_impl => todo!(),
+            OP::BRK_impl => todo!("{:#04X}", op),
 
-            OP::BVC_rel => todo!(),
+            OP::BVC_rel => todo!("{:#04X}", op),
 
-            OP::BVS_rel => todo!(),
+            OP::BVS_rel => todo!("{:#04X}", op),
 
-            OP::CLC_impl => todo!(),
+            OP::CLC_impl => todo!("{:#04X}", op),
 
-            OP::CLD_impl => todo!(),
+            OP::CLD_impl => todo!("{:#04X}", op),
 
-            OP::CLI_impl => todo!(),
+            OP::CLI_impl => todo!("{:#04X}", op),
 
-            OP::CLV_impl => todo!(),
+            OP::CLV_impl => todo!("{:#04X}", op),
 
-            OP::CMP_X_ind => todo!(),
-            OP::CMP_abs => todo!(),
-            OP::CMP_abs_X => todo!(),
-            OP::CMP_abs_Y => todo!(),
-            OP::CMP_imm => todo!(),
-            OP::CMP_ind_Y => todo!(),
-            OP::CMP_zpg => todo!(),
-            OP::CMP_zpg_X => todo!(),
+            OP::CMP_X_ind => todo!("{:#04X}", op),
+            OP::CMP_abs => todo!("{:#04X}", op),
+            OP::CMP_abs_X => todo!("{:#04X}", op),
+            OP::CMP_abs_Y => todo!("{:#04X}", op),
+            OP::CMP_imm => todo!("{:#04X}", op),
+            OP::CMP_ind_Y => todo!("{:#04X}", op),
+            OP::CMP_zpg => todo!("{:#04X}", op),
+            OP::CMP_zpg_X => todo!("{:#04X}", op),
 
-            OP::CPX_abs => todo!(),
-            OP::CPX_imm => todo!(),
-            OP::CPX_zpg => todo!(),
+            OP::CPX_abs => todo!("{:#04X}", op),
+            OP::CPX_imm => todo!("{:#04X}", op),
+            OP::CPX_zpg => todo!("{:#04X}", op),
 
-            OP::CPY_abs => todo!(),
-            OP::CPY_imm => todo!(),
-            OP::CPY_zpg => todo!(),
+            OP::CPY_abs => todo!("{:#04X}", op),
+            OP::CPY_imm => todo!("{:#04X}", op),
+            OP::CPY_zpg => todo!("{:#04X}", op),
 
-            OP::DCP_X_ind => todo!(),
-            OP::DCP_abs => todo!(),
-            OP::DCP_abs_X => todo!(),
-            OP::DCP_abs_Y => todo!(),
-            OP::DCP_ind_Y => todo!(),
-            OP::DCP_zpg => todo!(),
-            OP::DCP_zpg_X => todo!(),
+            OP::DCP_X_ind => todo!("{:#04X}", op),
+            OP::DCP_abs => todo!("{:#04X}", op),
+            OP::DCP_abs_X => todo!("{:#04X}", op),
+            OP::DCP_abs_Y => todo!("{:#04X}", op),
+            OP::DCP_ind_Y => todo!("{:#04X}", op),
+            OP::DCP_zpg => todo!("{:#04X}", op),
+            OP::DCP_zpg_X => todo!("{:#04X}", op),
 
             OP::DEC_abs | OP::DEC_abs_X | OP::DEC_zpg | OP::DEC_zpg_X => {
-                let value = match OP::from(op) {
-                    OP::INC_abs => self.abs_rmw(memory, |x| x - 1),
-                    OP::INC_abs_X => self.abs_rmw(memory, |x| x - 1),
-                    OP::INC_zpg => self.abs_rmw(memory, |x| x - 1),
-                    OP::INC_zpg_X | _ => self.abs_rmw(memory, |x| x - 1),
-                };
+                if let Some(value) = match OP::from(op) {
+                    OP::INC_abs => self.abs_rmw(memory, emulator_cycle, |x| x - 1),
+                    OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x - 1),
+                    OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x - 1),
+                    OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x - 1),
+                } {
+                    if value == 0 {
+                        self.set_flag_zero();
+                    } else {
+                        self.reset_flag_zero();
+                    }
 
-                if value == 0 {
-                    self.set_flag_zero();
-                } else {
-                    self.reset_flag_zero();
-                }
-
-                if value & 0b1000_0000 == 1 {
-                    self.set_flag_negative();
-                } else {
-                    self.reset_flag_negative();
+                    if value & 0b1000_0000 == 1 {
+                        self.set_flag_negative();
+                    } else {
+                        self.reset_flag_negative();
+                    }
                 }
             }
 
-            OP::DEX_impl => todo!(),
+            OP::DEX_impl => todo!("{:#04X}", op),
 
-            OP::DEY_impl => todo!(),
+            OP::DEY_impl => todo!("{:#04X}", op),
 
-            OP::EOR_X_ind => todo!(),
-            OP::EOR_abs => todo!(),
-            OP::EOR_abs_X => todo!(),
-            OP::EOR_abs_Y => todo!(),
-            OP::EOR_imm => todo!(),
-            OP::EOR_ind_Y => todo!(),
-            OP::EOR_zpg => todo!(),
-            OP::EOR_zpg_X => todo!(),
+            OP::EOR_X_ind => todo!("{:#04X}", op),
+            OP::EOR_abs => todo!("{:#04X}", op),
+            OP::EOR_abs_X => todo!("{:#04X}", op),
+            OP::EOR_abs_Y => todo!("{:#04X}", op),
+            OP::EOR_imm => todo!("{:#04X}", op),
+            OP::EOR_ind_Y => todo!("{:#04X}", op),
+            OP::EOR_zpg => todo!("{:#04X}", op),
+            OP::EOR_zpg_X => todo!("{:#04X}", op),
 
             OP::INC_abs | OP::INC_abs_X | OP::INC_zpg | OP::INC_zpg_X => {
-                let value = match OP::from(op) {
-                    OP::INC_abs => self.abs_rmw(memory, |x| x + 1),
-                    OP::INC_abs_X => self.abs_rmw(memory, |x| x + 1),
-                    OP::INC_zpg => self.abs_rmw(memory, |x| x + 1),
-                    OP::INC_zpg_X | _ => self.abs_rmw(memory, |x| x + 1),
-                };
+                if let Some(value) = match OP::from(op) {
+                    OP::INC_abs => self.abs_rmw(memory, emulator_cycle, |x| x + 1),
+                    OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x + 1),
+                    OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x + 1),
+                    OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x + 1),
+                } {
+                    if value == 0 {
+                        self.set_flag_zero();
+                    } else {
+                        self.reset_flag_zero();
+                    }
 
-                if value == 0 {
-                    self.set_flag_zero();
-                } else {
-                    self.reset_flag_zero();
-                }
-
-                if value & 0b1000_0000 == 1 {
-                    self.set_flag_negative();
-                } else {
-                    self.reset_flag_negative();
+                    if value & 0b1000_0000 == 1 {
+                        self.set_flag_negative();
+                    } else {
+                        self.reset_flag_negative();
+                    }
                 }
             }
 
-            OP::INX_impl => todo!(),
+            OP::INX_impl => todo!("{:#04X}", op),
 
-            OP::INY_impl => todo!(),
+            OP::INY_impl => todo!("{:#04X}", op),
 
-            OP::ISC_X_ind => todo!(),
-            OP::ISC_abs => todo!(),
-            OP::ISC_abs_X => todo!(),
-            OP::ISC_abs_Y => todo!(),
-            OP::ISC_ind_Y => todo!(),
-            OP::ISC_zpg => todo!(),
-            OP::ISC_zpg_X => todo!(),
+            OP::ISC_X_ind => todo!("{:#04X}", op),
+            OP::ISC_abs => todo!("{:#04X}", op),
+            OP::ISC_abs_X => todo!("{:#04X}", op),
+            OP::ISC_abs_Y => todo!("{:#04X}", op),
+            OP::ISC_ind_Y => todo!("{:#04X}", op),
+            OP::ISC_zpg => todo!("{:#04X}", op),
+            OP::ISC_zpg_X => todo!("{:#04X}", op),
 
-            OP::JAM_0x12 => todo!(),
-            OP::JAM_0x2 => todo!(),
-            OP::JAM_0x22 => todo!(),
-            OP::JAM_0x32 => todo!(),
-            OP::JAM_0x42 => todo!(),
-            OP::JAM_0x52 => todo!(),
-            OP::JAM_0x62 => todo!(),
-            OP::JAM_0x72 => todo!(),
-            OP::JAM_0x92 => todo!(),
-            OP::JAM_0xb2 => todo!(),
-            OP::JAM_0xd2 => todo!(),
-            OP::JAM_0xf2 => todo!(),
+            OP::JAM_0x12 => todo!("{:#04X}", op),
+            OP::JAM_0x2 => todo!("{:#04X}", op),
+            OP::JAM_0x22 => todo!("{:#04X}", op),
+            OP::JAM_0x32 => todo!("{:#04X}", op),
+            OP::JAM_0x42 => todo!("{:#04X}", op),
+            OP::JAM_0x52 => todo!("{:#04X}", op),
+            OP::JAM_0x62 => todo!("{:#04X}", op),
+            OP::JAM_0x72 => todo!("{:#04X}", op),
+            OP::JAM_0x92 => todo!("{:#04X}", op),
+            OP::JAM_0xb2 => todo!("{:#04X}", op),
+            OP::JAM_0xd2 => todo!("{:#04X}", op),
+            OP::JAM_0xf2 => todo!("{:#04X}", op),
 
-            OP::JMP_abs => todo!(),
-            OP::JMP_ind => todo!(),
+            OP::JMP_abs => todo!("{:#04X}", op),
+            OP::JMP_ind => todo!("{:#04X}", op),
 
-            OP::JSR_abs => todo!(),
+            OP::JSR_abs => todo!("{:#04X}", op),
 
-            OP::LAS_abs_Y => todo!(),
+            OP::LAS_abs_Y => todo!("{:#04X}", op),
 
-            OP::LAX_X_ind => todo!(),
-            OP::LAX_abs => todo!(),
-            OP::LAX_abs_Y => todo!(),
-            OP::LAX_ind_Y => todo!(),
-            OP::LAX_zpg => todo!(),
-            OP::LAX_zpg_Y => todo!(),
+            OP::LAX_X_ind => todo!("{:#04X}", op),
+            OP::LAX_abs => todo!("{:#04X}", op),
+            OP::LAX_abs_Y => todo!("{:#04X}", op),
+            OP::LAX_ind_Y => todo!("{:#04X}", op),
+            OP::LAX_zpg => todo!("{:#04X}", op),
+            OP::LAX_zpg_Y => todo!("{:#04X}", op),
 
-            OP::LDA_X_ind => todo!(),
-            OP::LDA_abs => todo!(),
-            OP::LDA_abs_X => todo!(),
-            OP::LDA_abs_Y => todo!(),
-            OP::LDA_imm => todo!(),
-            OP::LDA_ind_Y => todo!(),
-            OP::LDA_zpg => todo!(),
-            OP::LDA_zpg_X => todo!(),
+            OP::LDA_X_ind => todo!("{:#04X}", op),
+            OP::LDA_abs => todo!("{:#04X}", op),
+            OP::LDA_abs_X => todo!("{:#04X}", op),
+            OP::LDA_abs_Y => todo!("{:#04X}", op),
+            OP::LDA_imm => todo!("{:#04X}", op),
+            OP::LDA_ind_Y => todo!("{:#04X}", op),
+            OP::LDA_zpg => todo!("{:#04X}", op),
+            OP::LDA_zpg_X => todo!("{:#04X}", op),
 
-            OP::LDX_abs => todo!(),
-            OP::LDX_abs_Y => todo!(),
-            OP::LDX_imm => todo!(),
-            OP::LDX_zpg => todo!(),
-            OP::LDX_zpg_Y => todo!(),
+            OP::LDX_abs => todo!("{:#04X}", op),
+            OP::LDX_abs_Y => todo!("{:#04X}", op),
+            OP::LDX_imm => todo!("{:#04X}", op),
+            OP::LDX_zpg => todo!("{:#04X}", op),
+            OP::LDX_zpg_Y => todo!("{:#04X}", op),
 
-            OP::LDY_abs => todo!(),
-            OP::LDY_abs_X => todo!(),
-            OP::LDY_imm => todo!(),
-            OP::LDY_zpg => todo!(),
-            OP::LDY_zpg_X => todo!(),
+            OP::LDY_abs => todo!("{:#04X}", op),
+            OP::LDY_abs_X => todo!("{:#04X}", op),
+            OP::LDY_imm => todo!("{:#04X}", op),
+            OP::LDY_zpg => todo!("{:#04X}", op),
+            OP::LDY_zpg_X => todo!("{:#04X}", op),
 
-            OP::LSR_A => todo!(),
-            OP::LSR_abs => todo!(),
-            OP::LSR_abs_X => todo!(),
-            OP::LSR_zpg => todo!(),
-            OP::LSR_zpg_X => todo!(),
+            OP::LSR_A => todo!("{:#04X}", op),
+            OP::LSR_abs => todo!("{:#04X}", op),
+            OP::LSR_abs_X => todo!("{:#04X}", op),
+            OP::LSR_zpg => todo!("{:#04X}", op),
+            OP::LSR_zpg_X => todo!("{:#04X}", op),
 
-            OP::LXA_imm => todo!(),
+            OP::LXA_imm => todo!("{:#04X}", op),
 
-            OP::NOP_abs_0xc => todo!(),
-            OP::NOP_abs_X_0x1c => todo!(),
-            OP::NOP_abs_X_0x3c => todo!(),
-            OP::NOP_abs_X_0x5c => todo!(),
-            OP::NOP_abs_X_0x7c => todo!(),
-            OP::NOP_abs_X_0xdc => todo!(),
-            OP::NOP_abs_X_0xfc => todo!(),
-            OP::NOP_imm_0x80 => todo!(),
-            OP::NOP_imm_0x82 => todo!(),
-            OP::NOP_imm_0x89 => todo!(),
-            OP::NOP_imm_0xc2 => todo!(),
-            OP::NOP_imm_0xe2 => todo!(),
-            OP::NOP_impl_0x1a => todo!(),
-            OP::NOP_impl_0x3a => todo!(),
-            OP::NOP_impl_0x5a => todo!(),
-            OP::NOP_impl_0x7a => todo!(),
-            OP::NOP_impl_0xda => todo!(),
-            OP::NOP_impl_0xea => todo!(),
-            OP::NOP_impl_0xfa => todo!(),
-            OP::NOP_zpg_0x4 => todo!(),
-            OP::NOP_zpg_0x44 => todo!(),
-            OP::NOP_zpg_0x64 => todo!(),
-            OP::NOP_zpg_X_0x14 => todo!(),
-            OP::NOP_zpg_X_0x34 => todo!(),
-            OP::NOP_zpg_X_0x54 => todo!(),
-            OP::NOP_zpg_X_0x74 => todo!(),
-            OP::NOP_zpg_X_0xd4 => todo!(),
-            OP::NOP_zpg_X_0xf4 => todo!(),
+            OP::NOP_abs_0xc => todo!("{:#04X}", op),
+            OP::NOP_abs_X_0x1c => todo!("{:#04X}", op),
+            OP::NOP_abs_X_0x3c => todo!("{:#04X}", op),
+            OP::NOP_abs_X_0x5c => todo!("{:#04X}", op),
+            OP::NOP_abs_X_0x7c => todo!("{:#04X}", op),
+            OP::NOP_abs_X_0xdc => todo!("{:#04X}", op),
+            OP::NOP_abs_X_0xfc => todo!("{:#04X}", op),
+            OP::NOP_imm_0x80 => todo!("{:#04X}", op),
+            OP::NOP_imm_0x82 => todo!("{:#04X}", op),
+            OP::NOP_imm_0x89 => todo!("{:#04X}", op),
+            OP::NOP_imm_0xc2 => todo!("{:#04X}", op),
+            OP::NOP_imm_0xe2 => todo!("{:#04X}", op),
+            OP::NOP_impl_0x1a => todo!("{:#04X}", op),
+            OP::NOP_impl_0x3a => todo!("{:#04X}", op),
+            OP::NOP_impl_0x5a => todo!("{:#04X}", op),
+            OP::NOP_impl_0x7a => todo!("{:#04X}", op),
+            OP::NOP_impl_0xda => todo!("{:#04X}", op),
+            OP::NOP_impl_0xea => todo!("{:#04X}", op),
+            OP::NOP_impl_0xfa => todo!("{:#04X}", op),
+            OP::NOP_zpg_0x4 => todo!("{:#04X}", op),
+            OP::NOP_zpg_0x44 => todo!("{:#04X}", op),
+            OP::NOP_zpg_0x64 => todo!("{:#04X}", op),
+            OP::NOP_zpg_X_0x14 => todo!("{:#04X}", op),
+            OP::NOP_zpg_X_0x34 => todo!("{:#04X}", op),
+            OP::NOP_zpg_X_0x54 => todo!("{:#04X}", op),
+            OP::NOP_zpg_X_0x74 => todo!("{:#04X}", op),
+            OP::NOP_zpg_X_0xd4 => todo!("{:#04X}", op),
+            OP::NOP_zpg_X_0xf4 => todo!("{:#04X}", op),
 
-            OP::ORA_X_ind => todo!(),
-            OP::ORA_abs => todo!(),
-            OP::ORA_abs_X => todo!(),
-            OP::ORA_abs_Y => todo!(),
-            OP::ORA_imm => todo!(),
-            OP::ORA_ind_Y => todo!(),
-            OP::ORA_zpg => todo!(),
-            OP::ORA_zpg_X => todo!(),
+            OP::ORA_X_ind => todo!("{:#04X}", op),
+            OP::ORA_abs => todo!("{:#04X}", op),
+            OP::ORA_abs_X => todo!("{:#04X}", op),
+            OP::ORA_abs_Y => todo!("{:#04X}", op),
+            OP::ORA_imm => todo!("{:#04X}", op),
+            OP::ORA_ind_Y => todo!("{:#04X}", op),
+            OP::ORA_zpg => todo!("{:#04X}", op),
+            OP::ORA_zpg_X => todo!("{:#04X}", op),
 
-            OP::PHA_impl => todo!(),
+            OP::PHA_impl => todo!("{:#04X}", op),
 
-            OP::PHP_impl => todo!(),
+            OP::PHP_impl => todo!("{:#04X}", op),
 
-            OP::PLA_impl => todo!(),
+            OP::PLA_impl => todo!("{:#04X}", op),
 
-            OP::PLP_impl => todo!(),
+            OP::PLP_impl => todo!("{:#04X}", op),
 
-            OP::RLA_X_ind => todo!(),
-            OP::RLA_abs => todo!(),
-            OP::RLA_abs_X => todo!(),
-            OP::RLA_abs_Y => todo!(),
-            OP::RLA_ind_Y => todo!(),
-            OP::RLA_zpg => todo!(),
-            OP::RLA_zpg_X => todo!(),
+            OP::RLA_X_ind => todo!("{:#04X}", op),
+            OP::RLA_abs => todo!("{:#04X}", op),
+            OP::RLA_abs_X => todo!("{:#04X}", op),
+            OP::RLA_abs_Y => todo!("{:#04X}", op),
+            OP::RLA_ind_Y => todo!("{:#04X}", op),
+            OP::RLA_zpg => todo!("{:#04X}", op),
+            OP::RLA_zpg_X => todo!("{:#04X}", op),
 
-            OP::ROL_A => todo!(),
-            OP::ROL_abs => todo!(),
-            OP::ROL_abs_X => todo!(),
-            OP::ROL_zpg => todo!(),
-            OP::ROL_zpg_X => todo!(),
+            OP::ROL_A => todo!("{:#04X}", op),
+            OP::ROL_abs => todo!("{:#04X}", op),
+            OP::ROL_abs_X => todo!("{:#04X}", op),
+            OP::ROL_zpg => todo!("{:#04X}", op),
+            OP::ROL_zpg_X => todo!("{:#04X}", op),
 
-            OP::ROR_A => todo!(),
-            OP::ROR_abs => todo!(),
-            OP::ROR_abs_X => todo!(),
-            OP::ROR_zpg => todo!(),
-            OP::ROR_zpg_X => todo!(),
+            OP::ROR_A => todo!("{:#04X}", op),
+            OP::ROR_abs => todo!("{:#04X}", op),
+            OP::ROR_abs_X => todo!("{:#04X}", op),
+            OP::ROR_zpg => todo!("{:#04X}", op),
+            OP::ROR_zpg_X => todo!("{:#04X}", op),
 
-            OP::RRA_X_ind => todo!(),
-            OP::RRA_abs => todo!(),
-            OP::RRA_abs_X => todo!(),
-            OP::RRA_abs_Y => todo!(),
-            OP::RRA_ind_Y => todo!(),
-            OP::RRA_zpg => todo!(),
-            OP::RRA_zpg_X => todo!(),
+            OP::RRA_X_ind => todo!("{:#04X}", op),
+            OP::RRA_abs => todo!("{:#04X}", op),
+            OP::RRA_abs_X => todo!("{:#04X}", op),
+            OP::RRA_abs_Y => todo!("{:#04X}", op),
+            OP::RRA_ind_Y => todo!("{:#04X}", op),
+            OP::RRA_zpg => todo!("{:#04X}", op),
+            OP::RRA_zpg_X => todo!("{:#04X}", op),
 
-            OP::RTI_impl => todo!(),
+            OP::RTI_impl => todo!("{:#04X}", op),
 
-            OP::RTS_impl => todo!(),
+            OP::RTS_impl => todo!("{:#04X}", op),
 
-            OP::SAX_X_ind => todo!(),
-            OP::SAX_abs => todo!(),
-            OP::SAX_zpg => todo!(),
-            OP::SAX_zpg_Y => todo!(),
+            OP::SAX_X_ind => todo!("{:#04X}", op),
+            OP::SAX_abs => todo!("{:#04X}", op),
+            OP::SAX_zpg => todo!("{:#04X}", op),
+            OP::SAX_zpg_Y => todo!("{:#04X}", op),
 
-            OP::SBC_X_ind => todo!(),
-            OP::SBC_abs => todo!(),
-            OP::SBC_abs_X => todo!(),
-            OP::SBC_abs_Y => todo!(),
-            OP::SBC_imm => todo!(),
-            OP::SBC_ind_Y => todo!(),
-            OP::SBC_zpg => todo!(),
-            OP::SBC_zpg_X => todo!(),
+            OP::SBC_X_ind => todo!("{:#04X}", op),
+            OP::SBC_abs => todo!("{:#04X}", op),
+            OP::SBC_abs_X => todo!("{:#04X}", op),
+            OP::SBC_abs_Y => todo!("{:#04X}", op),
+            OP::SBC_imm => todo!("{:#04X}", op),
+            OP::SBC_ind_Y => todo!("{:#04X}", op),
+            OP::SBC_zpg => todo!("{:#04X}", op),
+            OP::SBC_zpg_X => todo!("{:#04X}", op),
 
-            OP::SBX_imm => todo!(),
+            OP::SBX_imm => todo!("{:#04X}", op),
 
-            OP::SEC_impl => todo!(),
+            OP::SEC_impl => todo!("{:#04X}", op),
 
-            OP::SED_impl => todo!(),
+            OP::SED_impl => todo!("{:#04X}", op),
 
-            OP::SEI_impl => todo!(),
+            OP::SEI_impl => todo!("{:#04X}", op),
 
-            OP::SHA_abs_Y => todo!(),
-            OP::SHA_ind_Y => todo!(),
+            OP::SHA_abs_Y => todo!("{:#04X}", op),
+            OP::SHA_ind_Y => todo!("{:#04X}", op),
 
-            OP::SHX_abs_Y => todo!(),
+            OP::SHX_abs_Y => todo!("{:#04X}", op),
 
-            OP::SHY_abs_X => todo!(),
+            OP::SHY_abs_X => todo!("{:#04X}", op),
 
-            OP::SLO_X_ind => todo!(),
-            OP::SLO_abs => todo!(),
-            OP::SLO_abs_X => todo!(),
-            OP::SLO_abs_Y => todo!(),
-            OP::SLO_ind_Y => todo!(),
-            OP::SLO_zpg => todo!(),
-            OP::SLO_zpg_X => todo!(),
+            OP::SLO_X_ind => todo!("{:#04X}", op),
+            OP::SLO_abs => todo!("{:#04X}", op),
+            OP::SLO_abs_X => todo!("{:#04X}", op),
+            OP::SLO_abs_Y => todo!("{:#04X}", op),
+            OP::SLO_ind_Y => todo!("{:#04X}", op),
+            OP::SLO_zpg => todo!("{:#04X}", op),
+            OP::SLO_zpg_X => todo!("{:#04X}", op),
 
-            OP::SRE_X_ind => todo!(),
-            OP::SRE_abs => todo!(),
-            OP::SRE_abs_X => todo!(),
-            OP::SRE_abs_Y => todo!(),
-            OP::SRE_ind_Y => todo!(),
-            OP::SRE_zpg => todo!(),
-            OP::SRE_zpg_X => todo!(),
+            OP::SRE_X_ind => todo!("{:#04X}", op),
+            OP::SRE_abs => todo!("{:#04X}", op),
+            OP::SRE_abs_X => todo!("{:#04X}", op),
+            OP::SRE_abs_Y => todo!("{:#04X}", op),
+            OP::SRE_ind_Y => todo!("{:#04X}", op),
+            OP::SRE_zpg => todo!("{:#04X}", op),
+            OP::SRE_zpg_X => todo!("{:#04X}", op),
 
-            OP::STA_X_ind => todo!(),
-            OP::STA_abs => todo!(),
-            OP::STA_abs_X => todo!(),
-            OP::STA_abs_Y => todo!(),
-            OP::STA_ind_Y => todo!(),
-            OP::STA_zpg => todo!(),
-            OP::STA_zpg_X => todo!(),
+            OP::STA_X_ind => todo!("{:#04X}", op),
+            OP::STA_abs => todo!("{:#04X}", op),
+            OP::STA_abs_X => todo!("{:#04X}", op),
+            OP::STA_abs_Y => todo!("{:#04X}", op),
+            OP::STA_ind_Y => todo!("{:#04X}", op),
+            OP::STA_zpg => todo!("{:#04X}", op),
+            OP::STA_zpg_X => todo!("{:#04X}", op),
 
-            OP::STX_abs => todo!(),
-            OP::STX_zpg => todo!(),
-            OP::STX_zpg_Y => todo!(),
+            OP::STX_abs => todo!("{:#04X}", op),
+            OP::STX_zpg => todo!("{:#04X}", op),
+            OP::STX_zpg_Y => todo!("{:#04X}", op),
 
-            OP::STY_abs => todo!(),
-            OP::STY_zpg => todo!(),
-            OP::STY_zpg_X => todo!(),
+            OP::STY_abs => todo!("{:#04X}", op),
+            OP::STY_zpg => todo!("{:#04X}", op),
+            OP::STY_zpg_X => todo!("{:#04X}", op),
 
-            OP::TAS_abs_Y => todo!(),
+            OP::TAS_abs_Y => todo!("{:#04X}", op),
 
-            OP::TAX_impl => todo!(),
+            OP::TAX_impl => todo!("{:#04X}", op),
 
-            OP::TAY_impl => todo!(),
+            OP::TAY_impl => todo!("{:#04X}", op),
 
-            OP::TSX_impl => todo!(),
+            OP::TSX_impl => todo!("{:#04X}", op),
 
-            OP::TXA_impl => todo!(),
+            OP::TXA_impl => todo!("{:#04X}", op),
 
-            OP::TXS_impl => todo!(),
+            OP::TXS_impl => todo!("{:#04X}", op),
 
-            OP::TYA_impl => todo!(),
+            OP::TYA_impl => todo!("{:#04X}", op),
 
-            OP::USBC_imm => todo!(),
+            OP::USBC_imm => todo!("{:#04X}", op),
         }
     }
 }
