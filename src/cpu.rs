@@ -348,10 +348,26 @@ impl CPU {
             OP::DCP_zpg => todo!(),
             OP::DCP_zpg_X => todo!(),
 
-            OP::DEC_abs => todo!(),
-            OP::DEC_abs_X => todo!(),
-            OP::DEC_zpg => todo!(),
-            OP::DEC_zpg_X => todo!(),
+            OP::DEC_abs | OP::DEC_abs_X | OP::DEC_zpg | OP::DEC_zpg_X => {
+                let value = match OP::from(op) {
+                    OP::INC_abs => self.abs_rmw(memory, |x| x - 1),
+                    OP::INC_abs_X => self.abs_rmw(memory, |x| x - 1),
+                    OP::INC_zpg => self.abs_rmw(memory, |x| x - 1),
+                    OP::INC_zpg_X | _ => self.abs_rmw(memory, |x| x - 1),
+                };
+
+                if value == 0 {
+                    self.set_flag_zero();
+                } else {
+                    self.reset_flag_zero();
+                }
+
+                if value & 0b1000_0000 == 1 {
+                    self.set_flag_negative();
+                } else {
+                    self.reset_flag_negative();
+                }
+            }
 
             OP::DEX_impl => todo!(),
 
