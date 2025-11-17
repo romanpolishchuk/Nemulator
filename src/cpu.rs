@@ -309,6 +309,18 @@ impl CPU {
 
                 memory.set(address, value);
                 self.cycle += 1;
+
+                if value == 0 {
+                    self.set_flag_zero();
+                } else {
+                    self.reset_flag_zero();
+                }
+
+                if value & 0b1000_0000 == 1 {
+                    self.set_flag_negative();
+                } else {
+                    self.reset_flag_negative();
+                }
             }
             OP::INC_abs_X => {
                 let mut address_lb = memory.get(self.program_counter);
@@ -336,6 +348,18 @@ impl CPU {
 
                 memory.set(address, value);
                 self.cycle += 1;
+
+                if value == 0 {
+                    self.set_flag_zero();
+                } else {
+                    self.reset_flag_zero();
+                }
+
+                if value & 0b1000_0000 == 1 {
+                    self.set_flag_negative();
+                } else {
+                    self.reset_flag_negative();
+                }
             }
             OP::INC_zpg => {
                 let address = memory.get(self.program_counter);
@@ -351,6 +375,18 @@ impl CPU {
 
                 memory.set(address.into(), value);
                 self.cycle += 1;
+
+                if value == 0 {
+                    self.set_flag_zero();
+                } else {
+                    self.reset_flag_zero();
+                }
+
+                if value & 0b1000_0000 == 1 {
+                    self.set_flag_negative();
+                } else {
+                    self.reset_flag_negative();
+                }
             }
             OP::INC_zpg_X => {
                 let mut address = memory.get(self.program_counter);
@@ -369,6 +405,18 @@ impl CPU {
 
                 memory.set(address.into(), value);
                 self.cycle += 1;
+
+                if value == 0 {
+                    self.set_flag_zero();
+                } else {
+                    self.reset_flag_zero();
+                }
+
+                if value & 0b1000_0000 == 1 {
+                    self.set_flag_negative();
+                } else {
+                    self.reset_flag_negative();
+                }
             }
 
             OP::INX_impl => todo!(),
