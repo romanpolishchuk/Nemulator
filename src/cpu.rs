@@ -289,10 +289,87 @@ impl CPU {
             OP::EOR_zpg => todo!(),
             OP::EOR_zpg_X => todo!(),
 
-            OP::INC_abs => todo!(),
-            OP::INC_abs_X => todo!(),
-            OP::INC_zpg => todo!(),
-            OP::INC_zpg_X => todo!(),
+            OP::INC_abs => {
+                let address_lb = memory.get(self.program_counter);
+                self.program_counter += 1;
+                self.cycle += 1;
+
+                let address_hb = memory.get(self.program_counter);
+                self.program_counter += 1;
+                self.cycle += 1;
+
+                let address = u16::from_le_bytes([address_lb, address_hb]);
+
+                let mut value = memory.get(address);
+                self.cycle += 1;
+
+                //memory.set(address, value);
+                value += 1;
+                self.cycle += 1;
+
+                memory.set(address, value);
+                self.cycle += 1;
+            }
+            OP::INC_abs_X => {
+                let mut address_lb = memory.get(self.program_counter);
+                self.program_counter += 1;
+                self.cycle += 1;
+
+                let mut address_hb = memory.get(self.program_counter);
+                self.program_counter += 1;
+                let (address_lb, is_overflow) = address_lb.overflowing_add(self.index_x);
+                self.cycle += 1;
+
+                if is_overflow {
+                    address_hb += 1;
+                }
+                self.cycle += 1;
+
+                let mut address = u16::from_le_bytes([address_lb, address_hb]);
+
+                let mut value = memory.get(address);
+                self.cycle += 1;
+
+                //memory.set(address, value);
+                value += 1;
+                self.cycle += 1;
+
+                memory.set(address, value);
+                self.cycle += 1;
+            }
+            OP::INC_zpg => {
+                let address = memory.get(self.program_counter);
+                self.program_counter += 1;
+                self.cycle += 1;
+
+                let mut value = memory.get(address.into());
+                self.cycle += 1;
+
+                //memory.set(address.into(), value);
+                value += 1;
+                self.cycle += 1;
+
+                memory.set(address.into(), value);
+                self.cycle += 1;
+            }
+            OP::INC_zpg_X => {
+                let mut address = memory.get(self.program_counter);
+                self.program_counter += 1;
+                self.cycle += 1;
+
+                address += self.index_x;
+                self.cycle += 1;
+
+                let mut value = memory.get(address.into());
+                self.cycle += 1;
+
+                //memory.set(address.into(), value);
+                value += 1;
+                self.cycle += 1;
+
+                memory.set(address.into(), value);
+                self.cycle += 1;
+            }
 
             OP::INX_impl => todo!(),
 
