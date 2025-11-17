@@ -174,6 +174,83 @@ impl CPU {
         writeln!(self.log_file, "{}", line).unwrap();
     }
 
+    fn abs_rmw<F>(&mut self, memory: &mut Memory, callback: F) -> u8
+    where
+        F: Fn(u8) -> u8,
+    {
+        self.cycle += 5;
+
+        let address_lb = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let address_hb = memory.get(self.program_counter);
+        self.program_counter += 1;
+
+        let address = u16::from_le_bytes([address_lb, address_hb]);
+
+        let mut value = memory.get(address);
+        value = callback(value);
+
+        memory.set(address, value);
+
+        value
+    }
+
+    fn absx_rmw<F>(&mut self, memory: &mut Memory, callback: F) -> u8
+    where
+        F: Fn(u8) -> u8,
+    {
+        self.cycle += 6;
+
+        let address_lb = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let address_hb = memory.get(self.program_counter);
+        self.program_counter += 1;
+
+        let mut address = u16::from_le_bytes([address_lb, address_hb]);
+        address += self.index_x as u16;
+
+        let mut value = memory.get(address);
+        value = callback(value);
+
+        memory.set(address, value);
+
+        value
+    }
+
+    fn zpg_rmw<F>(&mut self, memory: &mut Memory, callback: F)
+    where
+        F: Fn(u8) -> u8,
+    {
+        self.cycle += 4;
+
+        let address = memory.get(self.program_counter);
+        self.program_counter += 1;
+
+        let mut value = memory.get(address.into());
+
+        value = callback(value);
+
+        memory.set(address.into(), value);
+    }
+
+    fn zpgx_rmw<F>(&mut self, memory: &mut Memory, callback: F)
+    where
+        F: Fn(u8) -> u8,
+    {
+        self.cycle += 5;
+
+        let mut address = memory.get(self.program_counter);
+        self.program_counter += 1;
+
+        address += self.index_x;
+
+        let mut value = memory.get(address.into());
+
+        value = callback(value);
+
+        memory.set(address.into(), value);
+    }
+
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
         if self.cycle > emulator_cycle {
             return;
@@ -289,122 +366,13 @@ impl CPU {
             OP::EOR_zpg => todo!(),
             OP::EOR_zpg_X => todo!(),
 
-            OP::INC_abs => {
-                let address_lb = memory.get(self.program_counter);
-                self.program_counter += 1;
-                self.cycle += 1;
-
-                let address_hb = memory.get(self.program_counter);
-                self.program_counter += 1;
-                self.cycle += 1;
-
-                let address = u16::from_le_bytes([address_lb, address_hb]);
-
-                let mut value = memory.get(address);
-                self.cycle += 1;
-
-                //memory.set(address, value);
-                value += 1;
-                self.cycle += 1;
-
-                memory.set(address, value);
-                self.cycle += 1;
-
-                if value == 0 {
-                    self.set_flag_zero();
-                } else {
-                    self.reset_flag_zero();
-                }
-
-                if value & 0b1000_0000 == 1 {
-                    self.set_flag_negative();
-                } else {
-                    self.reset_flag_negative();
-                }
-            }
-            OP::INC_abs_X => {
-                let mut address_lb = memory.get(self.program_counter);
-                self.program_counter += 1;
-                self.cycle += 1;
-
-                let mut address_hb = memory.get(self.program_counter);
-                self.program_counter += 1;
-                let (address_lb, is_overflow) = address_lb.overflowing_add(self.index_x);
-                self.cycle += 1;
-
-                if is_overflow {
-                    address_hb += 1;
-                }
-                self.cycle += 1;
-
-                let mut address = u16::from_le_bytes([address_lb, address_hb]);
-
-                let mut value = memory.get(address);
-                self.cycle += 1;
-
-                //memory.set(address, value);
-                value += 1;
-                self.cycle += 1;
-
-                memory.set(address, value);
-                self.cycle += 1;
-
-                if value == 0 {
-                    self.set_flag_zero();
-                } else {
-                    self.reset_flag_zero();
-                }
-
-                if value & 0b1000_0000 == 1 {
-                    self.set_flag_negative();
-                } else {
-                    self.reset_flag_negative();
-                }
-            }
-            OP::INC_zpg => {
-                let address = memory.get(self.program_counter);
-                self.program_counter += 1;
-                self.cycle += 1;
-
-                let mut value = memory.get(address.into());
-                self.cycle += 1;
-
-                //memory.set(address.into(), value);
-                value += 1;
-                self.cycle += 1;
-
-                memory.set(address.into(), value);
-                self.cycle += 1;
-
-                if value == 0 {
-                    self.set_flag_zero();
-                } else {
-                    self.reset_flag_zero();
-                }
-
-                if value & 0b1000_0000 == 1 {
-                    self.set_flag_negative();
-                } else {
-                    self.reset_flag_negative();
-                }
-            }
-            OP::INC_zpg_X => {
-                let mut address = memory.get(self.program_counter);
-                self.program_counter += 1;
-                self.cycle += 1;
-
-                address += self.index_x;
-                self.cycle += 1;
-
-                let mut value = memory.get(address.into());
-                self.cycle += 1;
-
-                //memory.set(address.into(), value);
-                value += 1;
-                self.cycle += 1;
-
-                memory.set(address.into(), value);
-                self.cycle += 1;
+            OP::INC_abs | OP::INC_abs_X | OP::INC_zpg | OP::INC_zpg_X => {
+                let value = match OP::from(op) {
+                    OP::INC_abs => self.abs_rmw(memory, |x| x + 1),
+                    OP::INC_abs_X => self.abs_rmw(memory, |x| x + 1),
+                    OP::INC_zpg => self.abs_rmw(memory, |x| x + 1),
+                    OP::INC_zpg_X | _ => self.abs_rmw(memory, |x| x + 1),
+                };
 
                 if value == 0 {
                     self.set_flag_zero();
