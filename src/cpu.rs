@@ -1,5 +1,4 @@
 mod opcodes;
-use std::fmt::format;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 
@@ -296,7 +295,7 @@ impl CPU {
     }
 
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
-        if self.cycle > emulator_cycle.saturating_sub(1) {
+        if self.cycle.saturating_sub(1) > emulator_cycle {
             return;
         }
 
@@ -669,5 +668,41 @@ impl CPU {
 
             OP::USBC_imm => todo!("{:#04X}", op),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::rom_reader;
+
+    use super::*;
+
+    #[test]
+    fn opcodes_inc() {
+        let file = rom_reader::compile_and_read_file("./assets/tests/inc.nes");
+        let mut memory = Memory {
+            ram: vec![0; 0x800],
+            ppu_registers: [0; 8],
+            apu_io: [0; 32],
+            prg_rom: file.prg_rom,
+            chr_rom: file.chr_rom,
+        };
+
+        let mut cpu = CPU::new(&memory);
+
+        println!("$(0x2) = {}", memory.get(0x02));
+
+        cpu.cycle(&mut memory, 0);
+        cpu.cycle(&mut memory, 1);
+        cpu.cycle(&mut memory, 2);
+        cpu.cycle(&mut memory, 3);
+        cpu.cycle(&mut memory, 4);
+        cpu.cycle(&mut memory, 5);
+        cpu.cycle(&mut memory, 6);
+        cpu.cycle(&mut memory, 7);
+        cpu.cycle(&mut memory, 8);
+        cpu.cycle(&mut memory, 9);
+
+        println!("$(0x2) = {}", memory.get(0x02));
     }
 }

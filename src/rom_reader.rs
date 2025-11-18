@@ -48,3 +48,27 @@ pub fn read_file(filename: &str) -> iNES {
 
     ines
 }
+
+pub fn compile_and_read_file(filename: &str) -> iNES {
+    let file = std::fs::read(filename).unwrap();
+
+    let ines_header = iNES_header {
+        prg_rom_size: 1,
+        chr_rom_size: 0,
+    };
+
+    let mut prg_rom = vec![0; 16384 * ines_header.prg_rom_size as usize];
+    prg_rom[0..file.len().min(16384)].copy_from_slice(&file[0..file.len().min(16384)]);
+
+    prg_rom[16380] = 0x00;
+    prg_rom[16381] = 0x80;
+
+    let ines = iNES {
+        prg_rom: prg_rom,
+        chr_rom: vec![],
+        trainer: vec![],
+        header: ines_header,
+    };
+
+    ines
+}
