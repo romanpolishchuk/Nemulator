@@ -652,11 +652,38 @@ impl CPU {
             OP::RLA_zpg => todo!("{:#04X}", op),
             OP::RLA_zpg_X => todo!("{:#04X}", op),
 
-            OP::ROL_A => todo!("{:#04X}", op),
-            OP::ROL_abs => todo!("{:#04X}", op),
-            OP::ROL_abs_X => todo!("{:#04X}", op),
-            OP::ROL_zpg => todo!("{:#04X}", op),
-            OP::ROL_zpg_X => todo!("{:#04X}", op),
+            OP::ROL_A | OP::ROL_abs | OP::ROL_abs_X | OP::ROL_zpg | OP::ROL_zpg_X => {
+                let carry = self.get_flag_carry();
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::ROL_A => self.acc_w(memory, emulator_cycle, |x| (x << 1) | carry as u8),
+                    OP::ROL_abs => self.abs_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8),
+                    OP::ROL_abs_X => {
+                        self.absx_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8)
+                    }
+                    OP::ROL_zpg => self.zpg_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8),
+                    OP::ROL_zpg_X | _ => {
+                        self.zpgx_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8)
+                    }
+                } {
+                    if value & 0b1000_0000 == 1 {
+                        self.set_flag_carry();
+                    } else {
+                        self.reset_flag_carry();
+                    }
+
+                    if result == 0 {
+                        self.set_flag_zero();
+                    } else {
+                        self.reset_flag_zero();
+                    }
+
+                    if result & 0b1000_0000 == 1 {
+                        self.set_flag_negative();
+                    } else {
+                        self.reset_flag_negative();
+                    }
+                }
+            }
 
             OP::ROR_A => todo!("{:#04X}", op),
             OP::ROR_abs => todo!("{:#04X}", op),
