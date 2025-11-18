@@ -572,11 +572,29 @@ impl CPU {
             OP::LDY_zpg => todo!("{:#04X}", op),
             OP::LDY_zpg_X => todo!("{:#04X}", op),
 
-            OP::LSR_A => todo!("{:#04X}", op),
-            OP::LSR_abs => todo!("{:#04X}", op),
-            OP::LSR_abs_X => todo!("{:#04X}", op),
-            OP::LSR_zpg => todo!("{:#04X}", op),
-            OP::LSR_zpg_X => todo!("{:#04X}", op),
+            OP::LSR_A | OP::LSR_abs | OP::LSR_abs_X | OP::LSR_zpg | OP::LSR_zpg_X => {
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::LSR_A => self.acc_w(memory, emulator_cycle, |x| x >> 1),
+                    OP::LSR_abs => self.abs_rmw(memory, emulator_cycle, |x| x >> 1),
+                    OP::LSR_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x >> 1),
+                    OP::LSR_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x >> 1),
+                    OP::LSR_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x >> 1),
+                } {
+                    if value & 0b0000_0001 == 1 {
+                        self.set_flag_carry();
+                    } else {
+                        self.reset_flag_carry();
+                    }
+
+                    if result == 0 {
+                        self.set_flag_zero();
+                    } else {
+                        self.reset_flag_zero();
+                    }
+
+                    self.reset_flag_negative();
+                }
+            }
 
             OP::LXA_imm => todo!("{:#04X}", op),
 
