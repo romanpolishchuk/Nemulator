@@ -173,7 +173,12 @@ impl CPU {
         writeln!(self.log_file, "{}", line).unwrap();
     }
 
-    fn abs_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
+    fn abs_rmw<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
     where
         F: Fn(u8) -> u8,
     {
@@ -192,10 +197,10 @@ impl CPU {
 
         let address = u16::from_le_bytes([address_lb, address_hb]);
 
-        let mut value = memory.get(address);
-        value = callback(value);
+        let value = memory.get(address);
+        let result = callback(value);
 
-        memory.set(address, value);
+        memory.set(address, result);
 
         self.log_instr(
             vec![op, address_lb, address_hb],
@@ -203,10 +208,15 @@ impl CPU {
             &OP::from(op).to_string(),
         );
 
-        Some(value)
+        Some((value, result))
     }
 
-    fn absx_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
+    fn absx_rmw<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
     where
         F: Fn(u8) -> u8,
     {
@@ -226,10 +236,10 @@ impl CPU {
         let mut address = u16::from_le_bytes([address_lb, address_hb]);
         address += self.index_x as u16;
 
-        let mut value = memory.get(address);
-        value = callback(value);
+        let value = memory.get(address);
+        let result = callback(value);
 
-        memory.set(address, value);
+        memory.set(address, result);
 
         self.log_instr(
             vec![op, address_lb, address_hb],
@@ -237,10 +247,15 @@ impl CPU {
             &OP::from(op).to_string(),
         );
 
-        Some(value)
+        Some((value, result))
     }
 
-    fn zpg_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
+    fn zpg_rmw<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
     where
         F: Fn(u8) -> u8,
     {
@@ -255,18 +270,22 @@ impl CPU {
         let address = memory.get(self.program_counter);
         self.program_counter += 1;
 
-        let mut value = memory.get(address.into());
+        let value = memory.get(address.into());
+        let result = callback(value);
 
-        value = callback(value);
-
-        memory.set(address.into(), value);
+        memory.set(address.into(), result);
 
         self.log_instr(vec![op, address], OPMode::Zpg, &OP::from(op).to_string());
 
-        Some(value)
+        Some((value, result))
     }
 
-    fn zpgx_rmw<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<u8>
+    fn zpgx_rmw<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
     where
         F: Fn(u8) -> u8,
     {
@@ -283,15 +302,41 @@ impl CPU {
 
         address += self.index_x;
 
-        let mut value = memory.get(address.into());
+        let value = memory.get(address.into());
+        let result = callback(value);
 
-        value = callback(value);
-
-        memory.set(address.into(), value);
+        memory.set(address.into(), result);
 
         self.log_instr(vec![op, address], OPMode::ZpgX, &OP::from(op).to_string());
 
-        Some(value)
+        Some((value, result))
+    }
+
+    fn acc_w<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.cycle += 2;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
+
+        let value = self.accumulator;
+        let result = callback(value);
+
+        self.accumulator = result;
+
+        self.log_instr(vec![op], OPMode::A, &OP::from(op).to_string());
+
+        Some((value, result))
     }
 
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
@@ -330,11 +375,33 @@ impl CPU {
 
             OP::ARR_imm => todo!("{:#04X}", op),
 
-            OP::ASL_A => todo!("{:#04X}", op),
-            OP::ASL_abs => todo!("{:#04X}", op),
-            OP::ASL_abs_X => todo!("{:#04X}", op),
-            OP::ASL_zpg => todo!("{:#04X}", op),
-            OP::ASL_zpg_X => todo!("{:#04X}", op),
+            OP::ASL_A | OP::ASL_abs | OP::ASL_abs_X | OP::ASL_zpg | OP::ASL_zpg_X => {
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::ASL_A => self.acc_w(memory, emulator_cycle, |x| x << 1),
+                    OP::ASL_abs => self.abs_rmw(memory, emulator_cycle, |x| x << 1),
+                    OP::ASL_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x << 1),
+                    OP::ASL_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x << 1),
+                    OP::ASL_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x << 1),
+                } {
+                    if value & 0b1000_0000 == 1 {
+                        self.set_flag_carry();
+                    } else {
+                        self.reset_flag_carry();
+                    }
+
+                    if result == 0 {
+                        self.set_flag_zero();
+                    } else {
+                        self.reset_flag_zero();
+                    }
+
+                    if result & 0b1000_0000 == 1 {
+                        self.set_flag_negative();
+                    } else {
+                        self.reset_flag_negative();
+                    }
+                }
+            }
 
             OP::BCC_rel => todo!("{:#04X}", op),
 
@@ -391,19 +458,19 @@ impl CPU {
             OP::DCP_zpg_X => todo!("{:#04X}", op),
 
             OP::DEC_abs | OP::DEC_abs_X | OP::DEC_zpg | OP::DEC_zpg_X => {
-                if let Some(value) = match OP::from(op) {
+                if let Some((_, result)) = match OP::from(op) {
                     OP::INC_abs => self.abs_rmw(memory, emulator_cycle, |x| x - 1),
                     OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x - 1),
                     OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x - 1),
                     OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x - 1),
                 } {
-                    if value == 0 {
+                    if result == 0 {
                         self.set_flag_zero();
                     } else {
                         self.reset_flag_zero();
                     }
 
-                    if value & 0b1000_0000 == 1 {
+                    if result & 0b1000_0000 == 1 {
                         self.set_flag_negative();
                     } else {
                         self.reset_flag_negative();
@@ -425,19 +492,19 @@ impl CPU {
             OP::EOR_zpg_X => todo!("{:#04X}", op),
 
             OP::INC_abs | OP::INC_abs_X | OP::INC_zpg | OP::INC_zpg_X => {
-                if let Some(value) = match OP::from(op) {
+                if let Some((_, result)) = match OP::from(op) {
                     OP::INC_abs => self.abs_rmw(memory, emulator_cycle, |x| x + 1),
                     OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x + 1),
                     OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x + 1),
                     OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x + 1),
                 } {
-                    if value == 0 {
+                    if result == 0 {
                         self.set_flag_zero();
                     } else {
                         self.reset_flag_zero();
                     }
 
-                    if value & 0b1000_0000 == 1 {
+                    if result & 0b1000_0000 == 1 {
                         self.set_flag_negative();
                     } else {
                         self.reset_flag_negative();
