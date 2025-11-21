@@ -569,6 +569,7 @@ impl CPU {
         Some((value, result))
     }
 
+    // TODO: make log print x if x is passed or y if y is passed
     fn zpgxy_r<F>(
         &mut self,
         memory: &mut Memory,
@@ -593,6 +594,8 @@ impl CPU {
         let value = self.accumulator;
         let result = callback(self.accumulator, memory.get(address));
         self.accumulator = result;
+
+        self.log_instr(vec![op, lookup], OPMode::ZpgX, &OP::from(op).to_string());
 
         Some((value, result))
     }
