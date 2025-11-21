@@ -525,7 +525,7 @@ impl std::fmt::Display for OP {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Circle of radius {}",
+            "{}",
             match self {
                 OP::ADC_X_ind => "ADC",
                 OP::ADC_abs => "ADC",

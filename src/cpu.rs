@@ -1,6 +1,7 @@
 mod opcodes;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::result;
 
 use opcodes::OP;
 
@@ -49,7 +50,7 @@ impl CPU {
             program_counter: u16::from_le_bytes([memory.get(0xFFFC), memory.get(0xFFFD)]),
             stack_pointer: 0xFD,
             status_register: 0b0010_0000,
-            cycle: 0,
+            cycle: 7,
             log_file,
         }
     }
@@ -188,7 +189,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -226,7 +227,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -265,7 +266,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let address = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -295,7 +296,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let mut address = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -327,7 +328,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let value = self.accumulator;
         let result = callback(value);
@@ -354,7 +355,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -377,6 +378,7 @@ impl CPU {
         Some((value, result))
     }
 
+    // TODO: make log print x if x is passed or y if y is passed
     fn absxy_r<F>(
         &mut self,
         memory: &mut Memory,
@@ -399,7 +401,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -438,7 +440,7 @@ impl CPU {
             return None;
         }
 
-        let op = memory.get(self.program_counter);
+        let op = memory.get(self.program_counter - 1);
 
         let mut lookup = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -462,8 +464,134 @@ impl CPU {
         Some((value, result))
     }
 
+    fn imm_r<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8, u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.cycle += 2;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter - 1);
+        let imm = memory.get(self.program_counter);
+
+        let value = self.accumulator;
+        let result = callback(self.accumulator, imm);
+
+        self.accumulator = result;
+
+        self.log_instr(vec![op, imm], OPMode::Imm, &OP::from(op).to_string());
+
+        Some((value, result))
+    }
+
+    fn indy_r<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8, u8) -> u8,
+    {
+        let lookup = memory.get(self.program_counter);
+        let mut lo = memory.get(lookup as u16);
+        let mut hi = memory.get(lookup as u16 + 1);
+        let overflow: bool;
+        (lo, overflow) = lo.overflowing_add(self.index_y);
+        if overflow {
+            hi += 1;
+        }
+
+        if self.cycle == emulator_cycle {
+            self.cycle += 5;
+            if overflow {
+                self.cycle += 1;
+            }
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter - 1);
+        self.program_counter += 1;
+
+        let address = u16::from_le_bytes([lo, hi]);
+
+        let value = self.accumulator;
+        let result = callback(self.accumulator, memory.get(address));
+        self.accumulator = result;
+
+        self.log_instr(vec![op, lookup], OPMode::IndY, &OP::from(op).to_string());
+
+        Some((value, result))
+    }
+
+    fn zpg_r<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8, u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.cycle += 3;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter - 1);
+        let lookup = memory.get(self.program_counter);
+        let address = lookup as u16;
+        self.program_counter += 1;
+
+        let value = self.accumulator;
+        let result = callback(self.accumulator, memory.get(address));
+        self.accumulator = result;
+
+        self.log_instr(vec![op, lookup], OPMode::Zpg, &OP::from(op).to_string());
+
+        Some((value, result))
+    }
+
+    fn zpgxy_r<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        index: u8,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8, u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.cycle += 4;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter - 1);
+        let lookup = memory.get(self.program_counter).wrapping_add(index);
+        self.program_counter += 1;
+        let address = lookup as u16;
+
+        let value = self.accumulator;
+        let result = callback(self.accumulator, memory.get(address));
+        self.accumulator = result;
+
+        Some((value, result))
+    }
+
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
-        if self.cycle.saturating_sub(1) > emulator_cycle {
+        if self.cycle - 1 > emulator_cycle {
             return;
         }
 
@@ -493,37 +621,30 @@ impl CPU {
             | OP::AND_ind_Y
             | OP::AND_zpg
             | OP::AND_zpg_X => {
+                let callback = |acc, x| acc & x;
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::AND_X_ind => self.xind_r(memory, emulator_cycle, |acc, x| acc & x),
-                    OP::AND_abs => self.abs_r(memory, emulator_cycle, |acc, x| acc & x),
-                    OP::AND_abs_X => {
-                        self.absxy_r(memory, emulator_cycle, self.index_x, |acc, x| acc & x)
+                    OP::AND_X_ind => self.xind_r(memory, emulator_cycle, callback),
+                    OP::AND_abs => self.abs_r(memory, emulator_cycle, callback),
+                    OP::AND_abs_X => self.absxy_r(memory, emulator_cycle, self.index_x, callback),
+                    OP::AND_abs_Y => self.absxy_r(memory, emulator_cycle, self.index_y, callback),
+                    OP::AND_imm => self.imm_r(memory, emulator_cycle, callback),
+                    OP::AND_ind_Y => self.indy_r(memory, emulator_cycle, callback),
+                    OP::AND_zpg => self.zpg_r(memory, emulator_cycle, callback),
+                    OP::AND_zpg_X | _ => {
+                        self.zpgxy_r(memory, emulator_cycle, self.index_x, callback)
                     }
-                    OP::AND_abs_Y => {
-                        self.absxy_r(memory, emulator_cycle, self.index_y, |acc, x| acc & x)
-                    }
-                    OP::AND_imm => todo!(),
-                    OP::AND_ind_Y => todo!(),
-                    OP::AND_zpg => todo!(),
-                    OP::AND_zpg_X | _ => todo!(),
                 } {
-                    // if value & 0b1000_0000 == 1 {
-                    //     self.set_flag_carry();
-                    // } else {
-                    //     self.reset_flag_carry();
-                    // }
+                    if result == 0 {
+                        self.set_flag_zero();
+                    } else {
+                        self.reset_flag_zero();
+                    }
 
-                    // if result == 0 {
-                    //     self.set_flag_zero();
-                    // } else {
-                    //     self.reset_flag_zero();
-                    // }
-
-                    // if result & 0b1000_0000 == 1 {
-                    //     self.set_flag_negative();
-                    // } else {
-                    //     self.reset_flag_negative();
-                    // }
+                    if result & 0b1000_0000 == 1 {
+                        self.set_flag_negative();
+                    } else {
+                        self.reset_flag_negative();
+                    }
                 }
             }
 
@@ -532,12 +653,13 @@ impl CPU {
             OP::ARR_imm => todo!("{:#04X}", op),
 
             OP::ASL_A | OP::ASL_abs | OP::ASL_abs_X | OP::ASL_zpg | OP::ASL_zpg_X => {
+                let callback = |x| x << 1;
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::ASL_A => self.acc_w(memory, emulator_cycle, |x| x << 1),
-                    OP::ASL_abs => self.abs_rmw(memory, emulator_cycle, |x| x << 1),
-                    OP::ASL_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x << 1),
-                    OP::ASL_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x << 1),
-                    OP::ASL_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x << 1),
+                    OP::ASL_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::ASL_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::ASL_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::ASL_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::ASL_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
                     if value & 0b1000_0000 == 1 {
                         self.set_flag_carry();
@@ -614,11 +736,12 @@ impl CPU {
             OP::DCP_zpg_X => todo!("{:#04X}", op),
 
             OP::DEC_abs | OP::DEC_abs_X | OP::DEC_zpg | OP::DEC_zpg_X => {
+                let callback = |x| x - 1;
                 if let Some((_, result)) = match OP::from(op) {
-                    OP::INC_abs => self.abs_rmw(memory, emulator_cycle, |x| x - 1),
-                    OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x - 1),
-                    OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x - 1),
-                    OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x - 1),
+                    OP::DEC_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::DEC_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::DEC_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::DEC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
                     if result == 0 {
                         self.set_flag_zero();
@@ -648,11 +771,12 @@ impl CPU {
             OP::EOR_zpg_X => todo!("{:#04X}", op),
 
             OP::INC_abs | OP::INC_abs_X | OP::INC_zpg | OP::INC_zpg_X => {
+                let callback = |x| x + 1;
                 if let Some((_, result)) = match OP::from(op) {
-                    OP::INC_abs => self.abs_rmw(memory, emulator_cycle, |x| x + 1),
-                    OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x + 1),
-                    OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x + 1),
-                    OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x + 1),
+                    OP::INC_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
                     if result == 0 {
                         self.set_flag_zero();
@@ -729,12 +853,13 @@ impl CPU {
             OP::LDY_zpg_X => todo!("{:#04X}", op),
 
             OP::LSR_A | OP::LSR_abs | OP::LSR_abs_X | OP::LSR_zpg | OP::LSR_zpg_X => {
+                let callback = |x| x >> 1;
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::LSR_A => self.acc_w(memory, emulator_cycle, |x| x >> 1),
-                    OP::LSR_abs => self.abs_rmw(memory, emulator_cycle, |x| x >> 1),
-                    OP::LSR_abs_X => self.absx_rmw(memory, emulator_cycle, |x| x >> 1),
-                    OP::LSR_zpg => self.zpg_rmw(memory, emulator_cycle, |x| x >> 1),
-                    OP::LSR_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, |x| x >> 1),
+                    OP::LSR_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::LSR_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::LSR_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::LSR_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::LSR_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
                     if value & 0b0000_0001 == 1 {
                         self.set_flag_carry();
@@ -810,16 +935,13 @@ impl CPU {
 
             OP::ROL_A | OP::ROL_abs | OP::ROL_abs_X | OP::ROL_zpg | OP::ROL_zpg_X => {
                 let carry = self.get_flag_carry();
+                let callback = |x| (x << 1) | carry as u8;
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::ROL_A => self.acc_w(memory, emulator_cycle, |x| (x << 1) | carry as u8),
-                    OP::ROL_abs => self.abs_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8),
-                    OP::ROL_abs_X => {
-                        self.absx_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8)
-                    }
-                    OP::ROL_zpg => self.zpg_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8),
-                    OP::ROL_zpg_X | _ => {
-                        self.zpgx_rmw(memory, emulator_cycle, |x| (x << 1) | carry as u8)
-                    }
+                    OP::ROL_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::ROL_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::ROL_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::ROL_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::ROL_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
                     if value & 0b1000_0000 == 1 {
                         self.set_flag_carry();
@@ -843,21 +965,14 @@ impl CPU {
 
             OP::ROR_A | OP::ROR_abs | OP::ROR_abs_X | OP::ROR_zpg | OP::ROR_zpg_X => {
                 let carry = self.get_flag_carry();
-                if let Some((value, result)) =
-                    match OP::from(op) {
-                        OP::ROR_A => {
-                            self.acc_w(memory, emulator_cycle, |x| (x >> 1) | ((carry as u8) << 7))
-                        }
-                        OP::ROR_abs => self
-                            .abs_rmw(memory, emulator_cycle, |x| (x >> 1) | ((carry as u8) << 7)),
-                        OP::ROR_abs_X => self
-                            .absx_rmw(memory, emulator_cycle, |x| (x >> 1) | ((carry as u8) << 7)),
-                        OP::ROR_zpg => self
-                            .zpg_rmw(memory, emulator_cycle, |x| (x >> 1) | ((carry as u8) << 7)),
-                        OP::ROR_zpg_X | _ => self
-                            .zpgx_rmw(memory, emulator_cycle, |x| (x >> 1) | ((carry as u8) << 7)),
-                    }
-                {
+                let callback = |x| (x >> 1) | ((carry as u8) << 7);
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::ROR_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::ROR_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::ROR_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::ROR_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::ROR_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
+                } {
                     if value & 0b0000_0001 == 1 {
                         self.set_flag_carry();
                     } else {
@@ -989,19 +1104,12 @@ mod tests {
 
         let mut cpu = CPU::new(&memory);
 
-        println!("$(0x2) = {}", memory.get(0x02));
+        assert!(memory.get(0x02) == 0 as u8);
 
-        cpu.cycle(&mut memory, 0);
-        cpu.cycle(&mut memory, 1);
-        cpu.cycle(&mut memory, 2);
-        cpu.cycle(&mut memory, 3);
-        cpu.cycle(&mut memory, 4);
-        cpu.cycle(&mut memory, 5);
-        cpu.cycle(&mut memory, 6);
-        cpu.cycle(&mut memory, 7);
-        cpu.cycle(&mut memory, 8);
-        cpu.cycle(&mut memory, 9);
+        for cycle in 7..(7 + 10) {
+            cpu.cycle(&mut memory, cycle);
+        }
 
-        println!("$(0x2) = {}", memory.get(0x02));
+        assert!(memory.get(0x02) == 2 as u8);
     }
 }
