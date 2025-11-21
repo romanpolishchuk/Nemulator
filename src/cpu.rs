@@ -339,6 +339,129 @@ impl CPU {
         Some((value, result))
     }
 
+    fn abs_r<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8, u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.cycle += 4;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
+
+        let address_lb = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let address_hb = memory.get(self.program_counter);
+        self.program_counter += 1;
+
+        let address = u16::from_le_bytes([address_lb, address_hb]);
+
+        let value = self.accumulator;
+        let result = callback(self.accumulator, memory.get(address));
+
+        self.accumulator = result;
+
+        self.log_instr(
+            vec![op, address_lb, address_hb],
+            OPMode::Abs,
+            &OP::from(op).to_string(),
+        );
+
+        Some((value, result))
+    }
+
+    fn absxy_r<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        index: u8,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8, u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            let (_, is_overflow) = memory.get(self.program_counter).overflowing_add(index);
+            if is_overflow {
+                self.cycle += 5;
+            } else {
+                self.cycle += 4;
+            }
+
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
+
+        let address_lb = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let address_hb = memory.get(self.program_counter);
+        self.program_counter += 1;
+
+        let mut address = u16::from_le_bytes([address_lb, address_hb]);
+        address += index as u16;
+
+        let value = self.accumulator;
+        let result = callback(self.accumulator, memory.get(address));
+
+        self.accumulator = result;
+
+        self.log_instr(
+            vec![op, address_lb, address_hb],
+            OPMode::AbsX,
+            &OP::from(op).to_string(),
+        );
+
+        Some((value, result))
+    }
+
+    fn xind_r<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8, u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.cycle += 6;
+            self.program_counter -= 1;
+            return None;
+        }
+
+        let op = memory.get(self.program_counter);
+
+        let mut lookup = memory.get(self.program_counter);
+        self.program_counter += 1;
+
+        lookup += self.index_x;
+
+        let address =
+            u16::from_le_bytes([memory.get(lookup as u16), memory.get(lookup as u16 + 1)]);
+
+        let value = self.accumulator;
+        let result = callback(self.accumulator, memory.get(address));
+
+        self.accumulator = result;
+
+        self.log_instr(
+            vec![op, memory.get(lookup as u16), memory.get(lookup as u16 + 1)],
+            OPMode::Ind,
+            &OP::from(op).to_string(),
+        );
+
+        Some((value, result))
+    }
+
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
         if self.cycle.saturating_sub(1) > emulator_cycle {
             return;
@@ -362,14 +485,47 @@ impl CPU {
             OP::ANC_imm_0x0b => todo!("{:#04X}", op),
             OP::ANC_imm_0x2b => todo!("{:#04X}", op),
 
-            OP::AND_X_ind => todo!("{:#04X}", op),
-            OP::AND_abs => todo!("{:#04X}", op),
-            OP::AND_abs_X => todo!("{:#04X}", op),
-            OP::AND_abs_Y => todo!("{:#04X}", op),
-            OP::AND_imm => todo!("{:#04X}", op),
-            OP::AND_ind_Y => todo!("{:#04X}", op),
-            OP::AND_zpg => todo!("{:#04X}", op),
-            OP::AND_zpg_X => todo!("{:#04X}", op),
+            OP::AND_X_ind
+            | OP::AND_abs
+            | OP::AND_abs_X
+            | OP::AND_abs_Y
+            | OP::AND_imm
+            | OP::AND_ind_Y
+            | OP::AND_zpg
+            | OP::AND_zpg_X => {
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::AND_X_ind => self.xind_r(memory, emulator_cycle, |acc, x| acc & x),
+                    OP::AND_abs => self.abs_r(memory, emulator_cycle, |acc, x| acc & x),
+                    OP::AND_abs_X => {
+                        self.absxy_r(memory, emulator_cycle, self.index_x, |acc, x| acc & x)
+                    }
+                    OP::AND_abs_Y => {
+                        self.absxy_r(memory, emulator_cycle, self.index_y, |acc, x| acc & x)
+                    }
+                    OP::AND_imm => todo!(),
+                    OP::AND_ind_Y => todo!(),
+                    OP::AND_zpg => todo!(),
+                    OP::AND_zpg_X | _ => todo!(),
+                } {
+                    // if value & 0b1000_0000 == 1 {
+                    //     self.set_flag_carry();
+                    // } else {
+                    //     self.reset_flag_carry();
+                    // }
+
+                    // if result == 0 {
+                    //     self.set_flag_zero();
+                    // } else {
+                    //     self.reset_flag_zero();
+                    // }
+
+                    // if result & 0b1000_0000 == 1 {
+                    //     self.set_flag_negative();
+                    // } else {
+                    //     self.reset_flag_negative();
+                    // }
+                }
+            }
 
             OP::ANE_imm => todo!("{:#04X}", op),
 
