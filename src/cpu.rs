@@ -58,71 +58,78 @@ impl CPU {
     fn get_flag_carry(&self) -> bool {
         self.status_register & 0b1 == 0b1
     }
-    fn set_flag_carry(&mut self) {
-        self.status_register |= 0b1;
-    }
-    fn reset_flag_carry(&mut self) {
-        self.status_register &= 0b1111_1110;
+    fn set_flag_carry(&mut self, value: bool) {
+        if value {
+            self.status_register |= 0b1;
+        } else {
+            self.status_register &= 0b1111_1110;
+        }
     }
 
     fn get_flag_zero(&self) -> bool {
         self.status_register & 0b10 == 0b10
     }
-    fn set_flag_zero(&mut self) {
-        self.status_register |= 0b10;
-    }
-    fn reset_flag_zero(&mut self) {
-        self.status_register &= 0b1111_1101;
+    fn set_flag_zero(&mut self, value: bool) {
+        if value {
+            self.status_register |= 0b10;
+        } else {
+            self.status_register &= 0b1111_1101;
+        }
     }
 
     fn get_flag_interrupt_disable(&self) -> bool {
         self.status_register & 0b100 == 0b100
     }
-    fn set_flag_interrupt_disable(&mut self) {
-        self.status_register |= 0b100;
-    }
-    fn reset_flag_interrupt_disable(&mut self) {
-        self.status_register &= 0b1111_1011;
+    fn set_flag_interrupt_disable(&mut self, value: bool) {
+        if value {
+            self.status_register |= 0b100;
+        } else {
+            self.status_register &= 0b1111_1011;
+        }
     }
 
     fn get_flag_decimal(&self) -> bool {
         self.status_register & 0b1000 == 0b1000
     }
-    fn set_flag_decimal(&mut self) {
-        self.status_register |= 0b1000;
-    }
-    fn reset_flag_decimal(&mut self) {
-        self.status_register &= 0b1111_0111;
+    fn set_flag_decimal(&mut self, value: bool) {
+        if value {
+            self.status_register |= 0b1000;
+        } else {
+            self.status_register &= 0b1111_0111;
+        }
     }
 
     fn get_flag_b(&self) -> bool {
         self.status_register & 0b1000_0 == 0b1000_0
     }
-    fn set_flag_b(&mut self) {
-        self.status_register |= 0b1000_0;
-    }
-    fn reset_flag_b(&mut self) {
-        self.status_register &= 0b1110_1111;
+    fn set_flag_b(&mut self, value: bool) {
+        if value {
+            self.status_register |= 0b1000_0;
+        } else {
+            self.status_register &= 0b1110_1111;
+        }
     }
 
     fn get_flag_overflow(&self) -> bool {
         self.status_register & 0b1000_00 == 0b1000_000
     }
-    fn set_flag_overflow(&mut self) {
-        self.status_register |= 0b1000_000;
-    }
-    fn reset_flag_overflow(&mut self) {
-        self.status_register &= 0b1011_1111;
+    fn set_flag_overflow(&mut self, value: bool) {
+        if value {
+            self.status_register |= 0b1000_000;
+        } else {
+            self.status_register &= 0b1011_1111;
+        }
     }
 
     fn get_flag_negative(&self) -> bool {
         self.status_register & 0b1000_0000 == 0b1000_0000
     }
-    fn set_flag_negative(&mut self) {
-        self.status_register |= 0b1000_0000;
-    }
-    fn reset_flag_negative(&mut self) {
-        self.status_register &= 0b0111_1111;
+    fn set_flag_negative(&mut self, value: bool) {
+        if value {
+            self.status_register |= 0b1000_0000;
+        } else {
+            self.status_register &= 0b0111_1111;
+        }
     }
 
     fn log_instr(&mut self, bytes: Vec<u8>, mode: OPMode, name: &str) {
@@ -634,17 +641,8 @@ impl CPU {
                         self.zpgxy_r(memory, emulator_cycle, self.index_x, callback)
                     }
                 } {
-                    if result == 0 {
-                        self.set_flag_zero();
-                    } else {
-                        self.reset_flag_zero();
-                    }
-
-                    if result & 0b1000_0000 == 1 {
-                        self.set_flag_negative();
-                    } else {
-                        self.reset_flag_negative();
-                    }
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
             }
 
@@ -661,23 +659,9 @@ impl CPU {
                     OP::ASL_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
                     OP::ASL_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
-                    if value & 0b1000_0000 == 1 {
-                        self.set_flag_carry();
-                    } else {
-                        self.reset_flag_carry();
-                    }
-
-                    if result == 0 {
-                        self.set_flag_zero();
-                    } else {
-                        self.reset_flag_zero();
-                    }
-
-                    if result & 0b1000_0000 == 1 {
-                        self.set_flag_negative();
-                    } else {
-                        self.reset_flag_negative();
-                    }
+                    self.set_flag_carry(value & 0b1000_0000 != 0);
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
             }
 
@@ -743,17 +727,8 @@ impl CPU {
                     OP::DEC_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
                     OP::DEC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
-                    if result == 0 {
-                        self.set_flag_zero();
-                    } else {
-                        self.reset_flag_zero();
-                    }
-
-                    if result & 0b1000_0000 == 1 {
-                        self.set_flag_negative();
-                    } else {
-                        self.reset_flag_negative();
-                    }
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
             }
 
@@ -778,17 +753,8 @@ impl CPU {
                     OP::INC_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
                     OP::INC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
-                    if result == 0 {
-                        self.set_flag_zero();
-                    } else {
-                        self.reset_flag_zero();
-                    }
-
-                    if result & 0b1000_0000 == 1 {
-                        self.set_flag_negative();
-                    } else {
-                        self.reset_flag_negative();
-                    }
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
             }
 
@@ -861,19 +827,9 @@ impl CPU {
                     OP::LSR_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
                     OP::LSR_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
-                    if value & 0b0000_0001 == 1 {
-                        self.set_flag_carry();
-                    } else {
-                        self.reset_flag_carry();
-                    }
-
-                    if result == 0 {
-                        self.set_flag_zero();
-                    } else {
-                        self.reset_flag_zero();
-                    }
-
-                    self.reset_flag_negative();
+                    self.set_flag_carry(value & 0b0000_0001 != 0);
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(false);
                 }
             }
 
@@ -943,23 +899,9 @@ impl CPU {
                     OP::ROL_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
                     OP::ROL_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
-                    if value & 0b1000_0000 == 1 {
-                        self.set_flag_carry();
-                    } else {
-                        self.reset_flag_carry();
-                    }
-
-                    if result == 0 {
-                        self.set_flag_zero();
-                    } else {
-                        self.reset_flag_zero();
-                    }
-
-                    if result & 0b1000_0000 == 1 {
-                        self.set_flag_negative();
-                    } else {
-                        self.reset_flag_negative();
-                    }
+                    self.set_flag_carry(value & 0b1000_0000 != 0);
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
             }
 
@@ -973,23 +915,9 @@ impl CPU {
                     OP::ROR_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
                     OP::ROR_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
                 } {
-                    if value & 0b0000_0001 == 1 {
-                        self.set_flag_carry();
-                    } else {
-                        self.reset_flag_carry();
-                    }
-
-                    if result == 0 {
-                        self.set_flag_zero();
-                    } else {
-                        self.reset_flag_zero();
-                    }
-
-                    if result & 0b1000_0000 == 1 {
-                        self.set_flag_negative();
-                    } else {
-                        self.reset_flag_negative();
-                    }
+                    self.set_flag_carry(value & 0b0000_0001 != 0);
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
             }
 
