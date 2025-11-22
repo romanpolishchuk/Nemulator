@@ -1,4 +1,5 @@
 /target
-/assets
+/assets/*
+!/assets/tests/
 log.txt
 /.vscode

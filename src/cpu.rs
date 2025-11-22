@@ -488,6 +488,7 @@ impl CPU {
 
         let op = memory.get(self.program_counter - 1);
         let imm = memory.get(self.program_counter);
+        self.program_counter += 1;
 
         let value = self.accumulator;
         let result = callback(self.accumulator, imm);
@@ -800,14 +801,31 @@ impl CPU {
             OP::LAX_zpg => todo!("{:#04X}", op),
             OP::LAX_zpg_Y => todo!("{:#04X}", op),
 
-            OP::LDA_X_ind => todo!("{:#04X}", op),
-            OP::LDA_abs => todo!("{:#04X}", op),
-            OP::LDA_abs_X => todo!("{:#04X}", op),
-            OP::LDA_abs_Y => todo!("{:#04X}", op),
-            OP::LDA_imm => todo!("{:#04X}", op),
-            OP::LDA_ind_Y => todo!("{:#04X}", op),
-            OP::LDA_zpg => todo!("{:#04X}", op),
-            OP::LDA_zpg_X => todo!("{:#04X}", op),
+            OP::LDA_X_ind
+            | OP::LDA_abs
+            | OP::LDA_abs_X
+            | OP::LDA_abs_Y
+            | OP::LDA_imm
+            | OP::LDA_ind_Y
+            | OP::LDA_zpg
+            | OP::LDA_zpg_X => {
+                let callback = |_, x| x;
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::LDA_X_ind => self.xind_r(memory, emulator_cycle, callback),
+                    OP::LDA_abs => self.abs_r(memory, emulator_cycle, callback),
+                    OP::LDA_abs_X => self.absxy_r(memory, emulator_cycle, self.index_x, callback),
+                    OP::LDA_abs_Y => self.absxy_r(memory, emulator_cycle, self.index_y, callback),
+                    OP::LDA_imm => self.imm_r(memory, emulator_cycle, callback),
+                    OP::LDA_ind_Y => self.indy_r(memory, emulator_cycle, callback),
+                    OP::LDA_zpg => self.zpg_r(memory, emulator_cycle, callback),
+                    OP::LDA_zpg_X | _ => {
+                        self.zpgxy_r(memory, emulator_cycle, self.index_x, callback)
+                    }
+                } {
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                }
+            }
 
             OP::LDX_abs => todo!("{:#04X}", op),
             OP::LDX_abs_Y => todo!("{:#04X}", op),
@@ -1042,5 +1060,34 @@ mod tests {
         }
 
         assert!(memory.get(0x02) == 2 as u8);
+    }
+
+    #[test]
+    fn opcodes_lda() {
+        let file = rom_reader::compile_and_read_file("./assets/tests/LDA.nes");
+        let mut memory = Memory {
+            ram: vec![0; 0x800],
+            ppu_registers: [0; 8],
+            apu_io: [0; 32],
+            prg_rom: file.prg_rom,
+            chr_rom: file.chr_rom,
+        };
+
+        let mut cpu = CPU::new(&memory);
+
+        assert!(cpu.accumulator == 0);
+        cpu.cycle(&mut memory, 7);
+        cpu.cycle(&mut memory, 8);
+        assert!(cpu.accumulator == 1);
+        cpu.cycle(&mut memory, 9);
+        cpu.cycle(&mut memory, 10);
+        cpu.cycle(&mut memory, 11);
+        cpu.cycle(&mut memory, 12);
+        assert!(cpu.accumulator == 2);
+        cpu.cycle(&mut memory, 13);
+        cpu.cycle(&mut memory, 14);
+        cpu.cycle(&mut memory, 15);
+        cpu.cycle(&mut memory, 16);
+        assert!(cpu.accumulator == 3);
     }
 }
