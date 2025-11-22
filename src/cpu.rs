@@ -795,7 +795,8 @@ impl CPU {
             | OP::ADC_ind_Y
             | OP::ADC_zpg
             | OP::ADC_zpg_X => {
-                let callback = |acc, x| acc + x;
+                let offset: u8 = if self.get_flag_carry() { 1 } else { 0 };
+                let callback = |acc, x| acc + x + offset;
                 let register = self.accumulator;
                 if let Some((value, result)) = match OP::from(op) {
                     OP::ADC_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
