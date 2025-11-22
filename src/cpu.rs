@@ -33,6 +33,8 @@ pub struct CPU {
     status_register: u8,
     cycle: u64,
     log_file: File,
+    irq: bool,
+    nmi: bool,
 }
 
 impl CPU {
@@ -54,6 +56,8 @@ impl CPU {
             status_register: 0b0010_0000,
             cycle: 7,
             log_file,
+            irq: false,
+            nmi: false,
         }
     }
 
@@ -842,6 +846,8 @@ impl CPU {
                     );
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                     self.accumulator = result;
+                } else {
+                    return;
                 }
             }
 
@@ -873,6 +879,8 @@ impl CPU {
                     self.accumulator = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -892,6 +900,8 @@ impl CPU {
                     self.set_flag_carry(value & 0b1000_0000 != 0);
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -911,6 +921,8 @@ impl CPU {
                     self.set_flag_overflow(value & 0b0100_0000 != 0);
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -958,14 +970,33 @@ impl CPU {
                 self.set_flag_overflow(false);
             }
 
-            OP::CMP_X_ind => todo!("{:#04X}", op),
-            OP::CMP_abs => todo!("{:#04X}", op),
-            OP::CMP_abs_X => todo!("{:#04X}", op),
-            OP::CMP_abs_Y => todo!("{:#04X}", op),
-            OP::CMP_imm => todo!("{:#04X}", op),
-            OP::CMP_ind_Y => todo!("{:#04X}", op),
-            OP::CMP_zpg => todo!("{:#04X}", op),
-            OP::CMP_zpg_X => todo!("{:#04X}", op),
+            OP::CMP_X_ind
+            | OP::CMP_abs
+            | OP::CMP_abs_X
+            | OP::CMP_abs_Y
+            | OP::CMP_imm
+            | OP::CMP_ind_Y
+            | OP::CMP_zpg
+            | OP::CMP_zpg_X => {
+                let register = self.accumulator;
+                let callback = |acc, x| acc - x;
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::CMP_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
+                    OP::CMP_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::CMP_abs_X => self.absx_r(memory, emulator_cycle, register, callback),
+                    OP::CMP_abs_Y => self.absy_r(memory, emulator_cycle, register, callback),
+                    OP::CMP_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::CMP_ind_Y => self.indy_r(memory, emulator_cycle, register, callback),
+                    OP::CMP_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
+                    OP::CMP_zpg_X | _ => self.zpgx_r(memory, emulator_cycle, register, callback),
+                } {
+                    self.set_flag_carry(register >= value);
+                    self.set_flag_zero(register == value);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
+                }
+            }
 
             OP::CPX_abs => todo!("{:#04X}", op),
             OP::CPX_imm => todo!("{:#04X}", op),
@@ -993,6 +1024,8 @@ impl CPU {
                 } {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1043,6 +1076,8 @@ impl CPU {
                     self.accumulator = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1056,6 +1091,8 @@ impl CPU {
                 } {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1193,6 +1230,8 @@ impl CPU {
                     self.accumulator = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1209,6 +1248,8 @@ impl CPU {
                     self.index_x = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1225,6 +1266,8 @@ impl CPU {
                     self.index_y = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1240,6 +1283,8 @@ impl CPU {
                     self.set_flag_carry(value & 0b0000_0001 != 0);
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(false);
+                } else {
+                    return;
                 }
             }
 
@@ -1304,6 +1349,8 @@ impl CPU {
                     self.accumulator = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1368,6 +1415,8 @@ impl CPU {
                     self.set_flag_carry(value & 0b1000_0000 != 0);
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1384,6 +1433,8 @@ impl CPU {
                     self.set_flag_carry(value & 0b0000_0001 != 0);
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
                 }
             }
 
@@ -1459,6 +1510,8 @@ impl CPU {
                     );
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                     self.accumulator = result;
+                } else {
+                    return;
                 }
             }
 
@@ -1606,8 +1659,6 @@ impl CPU {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
     use crate::rom_reader;
 
     use super::*;
