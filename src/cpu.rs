@@ -778,6 +778,33 @@ impl CPU {
         memory.set(address, register);
     }
 
+    fn branch(&mut self, memory: &mut Memory, emulator_cycle: u64, condition: bool) {
+        let offset = memory.get(self.program_counter);
+        let (_, overflow) = (self.program_counter as u8).overflowing_add(offset);
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::Rel);
+            if !condition {
+                self.cycle += 2;
+                return;
+            }
+            if !overflow {
+                self.cycle += 3;
+                return;
+            }
+            self.cycle += 4;
+            return;
+        }
+
+        self.program_counter += 1;
+
+        if !condition {
+            return;
+        }
+
+        self.program_counter += offset as u16;
+    }
+
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
         if self.cycle - 1 > emulator_cycle {
             return;
@@ -868,26 +895,26 @@ impl CPU {
                 }
             }
 
-            OP::BCC_rel => todo!("{:#04X}", op),
+            OP::BCC_rel => self.branch(memory, emulator_cycle, !self.get_flag_carry()),
 
-            OP::BCS_rel => todo!("{:#04X}", op),
+            OP::BCS_rel => self.branch(memory, emulator_cycle, self.get_flag_carry()),
 
-            OP::BEQ_rel => todo!("{:#04X}", op),
+            OP::BEQ_rel => self.branch(memory, emulator_cycle, self.get_flag_zero()),
 
             OP::BIT_abs => todo!("{:#04X}", op),
             OP::BIT_zpg => todo!("{:#04X}", op),
 
-            OP::BMI_rel => todo!("{:#04X}", op),
+            OP::BMI_rel => self.branch(memory, emulator_cycle, self.get_flag_negative()),
 
-            OP::BNE_rel => todo!("{:#04X}", op),
+            OP::BNE_rel => self.branch(memory, emulator_cycle, !self.get_flag_zero()),
 
-            OP::BPL_rel => todo!("{:#04X}", op),
+            OP::BPL_rel => self.branch(memory, emulator_cycle, !self.get_flag_negative()),
 
             OP::BRK_impl => todo!("{:#04X}", op),
 
-            OP::BVC_rel => todo!("{:#04X}", op),
+            OP::BVC_rel => self.branch(memory, emulator_cycle, !self.get_flag_overflow()),
 
-            OP::BVS_rel => todo!("{:#04X}", op),
+            OP::BVS_rel => self.branch(memory, emulator_cycle, self.get_flag_overflow()),
 
             OP::CLC_impl => todo!("{:#04X}", op),
 
@@ -1005,8 +1032,9 @@ impl CPU {
 
             OP::JMP_abs => {
                 if self.cycle == emulator_cycle {
-                    self.cycle += 3;
                     self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Abs);
+                    self.cycle += 3;
                     return;
                 }
 
@@ -1015,7 +1043,22 @@ impl CPU {
                     memory.get(self.program_counter + 1),
                 ]);
             }
-            OP::JMP_ind => todo!("{:#04X}", op),
+            OP::JMP_ind => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Ind);
+                    self.cycle += 5;
+                    return;
+                }
+
+                let lo = memory.get(self.program_counter);
+                let hi = memory.get(self.program_counter + 1);
+
+                let jump_lo = memory.get(u16::from_be_bytes([lo, hi]));
+                let jump_hi = memory.get(u16::from_be_bytes([lo.wrapping_add(1), hi]));
+
+                self.program_counter = u16::from_le_bytes([jump_lo, jump_hi]);
+            }
 
             OP::JSR_abs => todo!("{:#04X}", op),
 
