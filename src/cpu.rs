@@ -134,42 +134,70 @@ impl CPU {
         }
     }
 
-    fn log_instr(&mut self, bytes: Vec<u8>, mode: OPMode) {
+    fn log_instr(&mut self, memory: &Memory, mode: OPMode) {
+        let bytes = vec![
+            memory.get(self.program_counter),
+            memory.get(self.program_counter + 1),
+            memory.get(self.program_counter + 2),
+        ];
+
         let mut line = String::from("");
         line += &format!("{:04X}  ", self.program_counter);
-        for byte in bytes.iter() {
-            line += &format!("{:02X} ", byte);
-        }
-        for _ in 0..(3 - bytes.len()) {
-            line += "   ";
-        }
-
-        line += &format!("{} ", &OP::from(bytes[0]).to_string());
+        let name = OP::from(bytes[0]).to_string();
         line += &format!(
-            "{}",
+            "{:42}",
             match mode {
-                OPMode::A => String::from("A"),
-                OPMode::Abs => format!("${:02X}{:02X}", bytes[2], bytes[1]),
-                OPMode::AbsX => format!("${:02X}{:02X}, X", bytes[2], bytes[1]),
-                OPMode::AbsY => format!("${:02X}{:02X}, Y", bytes[2], bytes[1]),
-                OPMode::Imm => format!("#${:02X}", bytes[1]),
-                OPMode::Impl => String::from(""),
-                OPMode::Ind => format!("(${:02X}{:02X})", bytes[2], bytes[1]),
-                OPMode::XInd => format!("(${:02X},X)", bytes[1]),
-                OPMode::IndY => format!("(${:02X}),Y", bytes[1]),
+                OPMode::A => format!("{:02X}       {} A", bytes[0], name),
+                OPMode::Abs => format!(
+                    "{:02X} {:02X} {:02X} {} ${:02X}{:02X}",
+                    bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
+                ),
+                OPMode::AbsX => format!(
+                    "{:02X} {:02X} {:02X} {} ${:02X}{:02X}, X",
+                    bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
+                ),
+                OPMode::AbsY => format!(
+                    "{:02X} {:02X} {:02X} {} ${:02X}{:02X}, Y",
+                    bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
+                ),
+                OPMode::Imm => format!(
+                    "{:02X} {:02X}    {} #${:02X}",
+                    bytes[0], bytes[1], name, bytes[1]
+                ),
+                OPMode::Impl => format!("{:02X}       {}", bytes[0], name),
+                OPMode::Ind => format!(
+                    "{:02X} {:02X} {:02X} {} (${:02X}{:02X})",
+                    bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
+                ),
+                OPMode::XInd => format!(
+                    "{:02X} {:02X}    {} (${:02X},X)",
+                    bytes[0], bytes[1], name, bytes[1]
+                ),
+                OPMode::IndY => format!(
+                    "{:02X} {:02X}    {} (${:02X}),Y",
+                    bytes[0], bytes[1], name, bytes[1]
+                ),
                 OPMode::Rel => format!(
-                    "$({:04X})",
+                    "{:02X} {:02X}    {} $({:04X})",
+                    bytes[0],
+                    bytes[1],
+                    name,
                     (self.program_counter as i32 + 2 as i32 + (bytes[1] as i8) as i32) as u16
                 ),
-                OPMode::Zpg => format!("${:02X}", bytes[1]),
-                OPMode::ZpgX => format!("${:02X},X", bytes[1]),
-                OPMode::ZpgY => format!("${:02X},Y", bytes[1]),
+                OPMode::Zpg => format!(
+                    "{:02X} {:02X}    {} ${:02X}",
+                    bytes[0], bytes[1], name, bytes[1]
+                ),
+                OPMode::ZpgX => format!(
+                    "{:02X} {:02X}    {} ${:02X},X",
+                    bytes[0], bytes[1], name, bytes[1]
+                ),
+                OPMode::ZpgY => format!(
+                    "{:02X} {:02X}    {} ${:02X},Y",
+                    bytes[0], bytes[1], name, bytes[1]
+                ),
             }
         );
-
-        while line.len() < 48 {
-            line += " ";
-        }
 
         line += &format!(
             "A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:  0,  0 CYC:{}",
@@ -194,14 +222,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                    memory.get(self.program_counter + 2),
-                ],
-                OPMode::Abs,
-            );
+            self.log_instr(memory, OPMode::Abs);
             self.cycle += 6;
 
             return None;
@@ -233,14 +254,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                    memory.get(self.program_counter + 2),
-                ],
-                OPMode::AbsX,
-            );
+            self.log_instr(memory, OPMode::AbsX);
             self.cycle += 7;
 
             return None;
@@ -273,13 +287,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                ],
-                OPMode::Zpg,
-            );
+            self.log_instr(memory, OPMode::Zpg);
             self.cycle += 5;
             return None;
         }
@@ -306,13 +314,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                ],
-                OPMode::ZpgX,
-            );
+            self.log_instr(memory, OPMode::ZpgX);
             self.cycle += 6;
             return None;
         }
@@ -330,18 +332,13 @@ impl CPU {
         Some((value, result))
     }
 
-    fn acc_w<F>(
-        &mut self,
-        memory: &mut Memory,
-        emulator_cycle: u64,
-        callback: F,
-    ) -> Option<(u8, u8)>
+    fn acc<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<(u8, u8)>
     where
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(vec![memory.get(self.program_counter)], OPMode::A);
+            self.log_instr(memory, OPMode::A);
             self.cycle += 2;
 
             return None;
@@ -367,14 +364,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                    memory.get(self.program_counter + 2),
-                ],
-                OPMode::Abs,
-            );
+            self.log_instr(memory, OPMode::Abs);
             self.cycle += 4;
             return None;
         }
@@ -406,14 +396,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                    memory.get(self.program_counter + 2),
-                ],
-                OPMode::AbsX,
-            );
+            self.log_instr(memory, OPMode::AbsX);
 
             let (_, is_overflow) = memory.get(self.program_counter).overflowing_add(index);
             if is_overflow {
@@ -451,14 +434,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                    memory.get(self.program_counter + 2),
-                ],
-                OPMode::Ind,
-            );
+            self.log_instr(memory, OPMode::Ind);
             self.cycle += 6;
             return None;
         }
@@ -489,13 +465,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                ],
-                OPMode::Imm,
-            );
+            self.log_instr(memory, OPMode::Imm);
             self.cycle += 2;
             return None;
         }
@@ -530,13 +500,7 @@ impl CPU {
 
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                ],
-                OPMode::IndY,
-            );
+            self.log_instr(memory, OPMode::IndY);
             self.cycle += 5;
             if overflow {
                 self.cycle += 1;
@@ -567,13 +531,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                ],
-                OPMode::Zpg,
-            );
+            self.log_instr(memory, OPMode::Zpg);
             self.cycle += 3;
 
             return None;
@@ -603,13 +561,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(
-                vec![
-                    memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
-                ],
-                OPMode::ZpgX,
-            );
+            self.log_instr(memory, OPMode::ZpgX);
             self.cycle += 4;
 
             return None;
@@ -687,7 +639,7 @@ impl CPU {
             OP::ASL_A | OP::ASL_abs | OP::ASL_abs_X | OP::ASL_zpg | OP::ASL_zpg_X => {
                 let callback = |x| x << 1;
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::ASL_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::ASL_A => self.acc(memory, emulator_cycle, callback),
                     OP::ASL_abs => self.abs_rmw(memory, emulator_cycle, callback),
                     OP::ASL_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
                     OP::ASL_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
@@ -940,7 +892,7 @@ impl CPU {
             OP::LSR_A | OP::LSR_abs | OP::LSR_abs_X | OP::LSR_zpg | OP::LSR_zpg_X => {
                 let callback = |x| x >> 1;
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::LSR_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::LSR_A => self.acc(memory, emulator_cycle, callback),
                     OP::LSR_abs => self.abs_rmw(memory, emulator_cycle, callback),
                     OP::LSR_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
                     OP::LSR_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
@@ -1035,7 +987,7 @@ impl CPU {
                 let carry = self.get_flag_carry();
                 let callback = |x| (x << 1) | carry as u8;
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::ROL_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::ROL_A => self.acc(memory, emulator_cycle, callback),
                     OP::ROL_abs => self.abs_rmw(memory, emulator_cycle, callback),
                     OP::ROL_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
                     OP::ROL_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
@@ -1051,7 +1003,7 @@ impl CPU {
                 let carry = self.get_flag_carry();
                 let callback = |x| (x >> 1) | ((carry as u8) << 7);
                 if let Some((value, result)) = match OP::from(op) {
-                    OP::ROR_A => self.acc_w(memory, emulator_cycle, callback),
+                    OP::ROR_A => self.acc(memory, emulator_cycle, callback),
                     OP::ROR_abs => self.abs_rmw(memory, emulator_cycle, callback),
                     OP::ROR_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
                     OP::ROR_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
