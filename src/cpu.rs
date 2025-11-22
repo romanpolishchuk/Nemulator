@@ -830,7 +830,7 @@ impl CPU {
             | OP::ADC_zpg
             | OP::ADC_zpg_X => {
                 let offset: u8 = if self.get_flag_carry() { 1 } else { 0 };
-                let callback = |acc, x| acc + x + offset;
+                let callback = |acc: u8, x: u8| acc.wrapping_add(x).wrapping_add(offset);
                 let register = self.accumulator;
                 if let Some((value, result)) = match OP::from(op) {
                     OP::ADC_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
@@ -991,7 +991,7 @@ impl CPU {
             | OP::CMP_zpg
             | OP::CMP_zpg_X => {
                 let register = self.accumulator;
-                let callback = |acc, x| acc - x;
+                let callback = |acc: u8, x: u8| acc.wrapping_sub(x);
                 if let Some((value, result)) = match OP::from(op) {
                     OP::CMP_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
                     OP::CMP_abs => self.abs_r(memory, emulator_cycle, register, callback),
