@@ -33,9 +33,6 @@ pub fn read_file(filename: &str) -> iNES {
         pointer += 16384 * ines_header.prg_rom_size as usize;
     }
 
-    println!("{:X}", prg_rom[16381]);
-    println!("{:X}", prg_rom[16380]);
-
     let mut chr_rom = vec![0; 8192 * ines_header.prg_rom_size as usize];
     if ines_header.chr_rom_size > 0 {
         chr_rom.copy_from_slice(&file[pointer..pointer + 8192 * ines_header.chr_rom_size as usize]);

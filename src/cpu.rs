@@ -386,7 +386,7 @@ impl CPU {
 
         let address = u16::from_le_bytes([address_lb, address_hb]);
 
-        let value = register;
+        let value = memory.get(address);
         let result = callback(register, memory.get(address));
 
         Some((value, result))
@@ -433,7 +433,7 @@ impl CPU {
         let mut address = u16::from_le_bytes([address_lb, address_hb]);
         address += index as u16;
 
-        let value = register;
+        let value = memory.get(address);
         let result = callback(register, memory.get(address));
 
         Some((value, result))
@@ -471,7 +471,7 @@ impl CPU {
         let address =
             u16::from_le_bytes([memory.get(lookup as u16), memory.get(lookup as u16 + 1)]);
 
-        let value = register;
+        let value = memory.get(address);
         let result = callback(register, memory.get(address));
 
         Some((value, result))
@@ -503,7 +503,7 @@ impl CPU {
         let imm = memory.get(self.program_counter);
         self.program_counter += 1;
 
-        let value = register;
+        let value = imm;
         let result = callback(register, imm);
 
         Some((value, result))
@@ -549,7 +549,7 @@ impl CPU {
 
         let address = u16::from_le_bytes([lo, hi]);
 
-        let value = register;
+        let value = memory.get(address);
         let result = callback(register, memory.get(address));
 
         Some((value, result))
@@ -583,7 +583,7 @@ impl CPU {
         let address = lookup as u16;
         self.program_counter += 1;
 
-        let value = register;
+        let value = memory.get(address);
         let result = callback(register, memory.get(address));
 
         Some((value, result))
@@ -619,7 +619,7 @@ impl CPU {
         self.program_counter += 1;
         let address = lookup as u16;
 
-        let value = register;
+        let value = memory.get(address);
         let result = callback(register, memory.get(address));
 
         Some((value, result))
