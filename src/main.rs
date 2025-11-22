@@ -61,5 +61,7 @@ fn main() {
         cycle: 7,
     };
 
-    emulator.cycle();
+    loop {
+        emulator.cycle();
+    }
 }

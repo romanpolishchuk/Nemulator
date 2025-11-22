@@ -147,53 +147,53 @@ impl CPU {
         line += &format!(
             "{:42}",
             match mode {
-                OPMode::A => format!("{:02X}       {} A", bytes[0], name),
+                OPMode::A => format!("{:02X}        {} A", bytes[0], name),
                 OPMode::Abs => format!(
-                    "{:02X} {:02X} {:02X} {} ${:02X}{:02X}",
+                    "{:02X} {:02X} {:02X}  {} ${:02X}{:02X}",
                     bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
                 ),
                 OPMode::AbsX => format!(
-                    "{:02X} {:02X} {:02X} {} ${:02X}{:02X}, X",
+                    "{:02X} {:02X} {:02X}  {} ${:02X}{:02X}, X",
                     bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
                 ),
                 OPMode::AbsY => format!(
-                    "{:02X} {:02X} {:02X} {} ${:02X}{:02X}, Y",
+                    "{:02X} {:02X} {:02X}  {} ${:02X}{:02X}, Y",
                     bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
                 ),
                 OPMode::Imm => format!(
-                    "{:02X} {:02X}    {} #${:02X}",
+                    "{:02X} {:02X}     {} #${:02X}",
                     bytes[0], bytes[1], name, bytes[1]
                 ),
-                OPMode::Impl => format!("{:02X}       {}", bytes[0], name),
+                OPMode::Impl => format!("{:02X}        {}", bytes[0], name),
                 OPMode::Ind => format!(
-                    "{:02X} {:02X} {:02X} {} (${:02X}{:02X})",
+                    "{:02X} {:02X} {:02X}  {} (${:02X}{:02X})",
                     bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
                 ),
                 OPMode::XInd => format!(
-                    "{:02X} {:02X}    {} (${:02X},X)",
+                    "{:02X} {:02X}     {} (${:02X},X)",
                     bytes[0], bytes[1], name, bytes[1]
                 ),
                 OPMode::IndY => format!(
-                    "{:02X} {:02X}    {} (${:02X}),Y",
+                    "{:02X} {:02X}     {} (${:02X}),Y",
                     bytes[0], bytes[1], name, bytes[1]
                 ),
                 OPMode::Rel => format!(
-                    "{:02X} {:02X}    {} $({:04X})",
+                    "{:02X} {:02X}     {} $({:04X})",
                     bytes[0],
                     bytes[1],
                     name,
                     (self.program_counter as i32 + 2 as i32 + (bytes[1] as i8) as i32) as u16
                 ),
                 OPMode::Zpg => format!(
-                    "{:02X} {:02X}    {} ${:02X}",
+                    "{:02X} {:02X}     {} ${:02X}",
                     bytes[0], bytes[1], name, bytes[1]
                 ),
                 OPMode::ZpgX => format!(
-                    "{:02X} {:02X}    {} ${:02X},X",
+                    "{:02X} {:02X}     {} ${:02X},X",
                     bytes[0], bytes[1], name, bytes[1]
                 ),
                 OPMode::ZpgY => format!(
-                    "{:02X} {:02X}    {} ${:02X},Y",
+                    "{:02X} {:02X}     {} ${:02X},Y",
                     bytes[0], bytes[1], name, bytes[1]
                 ),
             }
@@ -901,8 +901,18 @@ impl CPU {
 
             OP::BEQ_rel => self.branch(memory, emulator_cycle, self.get_flag_zero()),
 
-            OP::BIT_abs => todo!("{:#04X}", op),
-            OP::BIT_zpg => todo!("{:#04X}", op),
+            OP::BIT_abs | OP::BIT_zpg => {
+                let callback = |acc, x| acc & x;
+                let register = self.accumulator;
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::BIT_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::BIT_zpg | _ => self.zpg_r(memory, emulator_cycle, register, callback),
+                } {
+                    self.set_flag_overflow(value & 0b0100_0000 != 0);
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                }
+            }
 
             OP::BMI_rel => self.branch(memory, emulator_cycle, self.get_flag_negative()),
 
@@ -1124,7 +1134,32 @@ impl CPU {
                 self.program_counter = u16::from_le_bytes([jump_lo, jump_hi]);
             }
 
-            OP::JSR_abs => todo!("{:#04X}", op),
+            OP::JSR_abs => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Abs);
+                    self.cycle += 6;
+                    return;
+                }
+
+                let lo = memory.get(self.program_counter);
+                self.program_counter += 1;
+                let hi = memory.get(self.program_counter);
+
+                memory.set(
+                    0x100 + self.stack_pointer as u16,
+                    (self.program_counter >> 8) as u8,
+                );
+                self.stack_pointer -= 1;
+                memory.set(
+                    0x100 + self.stack_pointer as u16,
+                    self.program_counter as u8,
+                );
+                self.stack_pointer -= 1;
+
+                let address = u16::from_le_bytes([lo, hi]);
+                self.program_counter = address;
+            }
 
             OP::LAS_abs_Y => todo!("{:#04X}", op),
 
