@@ -2,6 +2,7 @@ mod opcodes;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
+use std::result;
 
 use opcodes::OP;
 
@@ -358,6 +359,7 @@ impl CPU {
         &mut self,
         memory: &mut Memory,
         emulator_cycle: u64,
+        register: u8,
         callback: F,
     ) -> Option<(u8, u8)>
     where
@@ -384,10 +386,8 @@ impl CPU {
 
         let address = u16::from_le_bytes([address_lb, address_hb]);
 
-        let value = self.accumulator;
-        let result = callback(self.accumulator, memory.get(address));
-
-        self.accumulator = result;
+        let value = register;
+        let result = callback(register, memory.get(address));
 
         Some((value, result))
     }
@@ -398,6 +398,7 @@ impl CPU {
         memory: &mut Memory,
         emulator_cycle: u64,
         index: u8,
+        register: u8,
         callback: F,
     ) -> Option<(u8, u8)>
     where
@@ -432,10 +433,8 @@ impl CPU {
         let mut address = u16::from_le_bytes([address_lb, address_hb]);
         address += index as u16;
 
-        let value = self.accumulator;
-        let result = callback(self.accumulator, memory.get(address));
-
-        self.accumulator = result;
+        let value = register;
+        let result = callback(register, memory.get(address));
 
         Some((value, result))
     }
@@ -444,6 +443,7 @@ impl CPU {
         &mut self,
         memory: &mut Memory,
         emulator_cycle: u64,
+        register: u8,
         callback: F,
     ) -> Option<(u8, u8)>
     where
@@ -471,10 +471,8 @@ impl CPU {
         let address =
             u16::from_le_bytes([memory.get(lookup as u16), memory.get(lookup as u16 + 1)]);
 
-        let value = self.accumulator;
-        let result = callback(self.accumulator, memory.get(address));
-
-        self.accumulator = result;
+        let value = register;
+        let result = callback(register, memory.get(address));
 
         Some((value, result))
     }
@@ -483,6 +481,7 @@ impl CPU {
         &mut self,
         memory: &mut Memory,
         emulator_cycle: u64,
+        register: u8,
         callback: F,
     ) -> Option<(u8, u8)>
     where
@@ -504,10 +503,8 @@ impl CPU {
         let imm = memory.get(self.program_counter);
         self.program_counter += 1;
 
-        let value = self.accumulator;
-        let result = callback(self.accumulator, imm);
-
-        self.accumulator = result;
+        let value = register;
+        let result = callback(register, imm);
 
         Some((value, result))
     }
@@ -516,6 +513,7 @@ impl CPU {
         &mut self,
         memory: &mut Memory,
         emulator_cycle: u64,
+        register: u8,
         callback: F,
     ) -> Option<(u8, u8)>
     where
@@ -551,9 +549,8 @@ impl CPU {
 
         let address = u16::from_le_bytes([lo, hi]);
 
-        let value = self.accumulator;
-        let result = callback(self.accumulator, memory.get(address));
-        self.accumulator = result;
+        let value = register;
+        let result = callback(register, memory.get(address));
 
         Some((value, result))
     }
@@ -562,6 +559,7 @@ impl CPU {
         &mut self,
         memory: &mut Memory,
         emulator_cycle: u64,
+        register: u8,
         callback: F,
     ) -> Option<(u8, u8)>
     where
@@ -585,9 +583,8 @@ impl CPU {
         let address = lookup as u16;
         self.program_counter += 1;
 
-        let value = self.accumulator;
-        let result = callback(self.accumulator, memory.get(address));
-        self.accumulator = result;
+        let value = register;
+        let result = callback(register, memory.get(address));
 
         Some((value, result))
     }
@@ -598,6 +595,7 @@ impl CPU {
         memory: &mut Memory,
         emulator_cycle: u64,
         index: u8,
+        register: u8,
         callback: F,
     ) -> Option<(u8, u8)>
     where
@@ -621,9 +619,8 @@ impl CPU {
         self.program_counter += 1;
         let address = lookup as u16;
 
-        let value = self.accumulator;
-        let result = callback(self.accumulator, memory.get(address));
-        self.accumulator = result;
+        let value = register;
+        let result = callback(register, memory.get(address));
 
         Some((value, result))
     }
@@ -659,19 +656,25 @@ impl CPU {
             | OP::AND_ind_Y
             | OP::AND_zpg
             | OP::AND_zpg_X => {
-                let callback = |acc, x| acc & x;
-                if let Some((value, result)) = match OP::from(op) {
-                    OP::AND_X_ind => self.xind_r(memory, emulator_cycle, callback),
-                    OP::AND_abs => self.abs_r(memory, emulator_cycle, callback),
-                    OP::AND_abs_X => self.absxy_r(memory, emulator_cycle, self.index_x, callback),
-                    OP::AND_abs_Y => self.absxy_r(memory, emulator_cycle, self.index_y, callback),
-                    OP::AND_imm => self.imm_r(memory, emulator_cycle, callback),
-                    OP::AND_ind_Y => self.indy_r(memory, emulator_cycle, callback),
-                    OP::AND_zpg => self.zpg_r(memory, emulator_cycle, callback),
+                let callback = |reg, x| reg & x;
+                let register = self.accumulator;
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::AND_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
+                    OP::AND_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::AND_abs_X => {
+                        self.absxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                    OP::AND_abs_Y => {
+                        self.absxy_r(memory, emulator_cycle, self.index_y, register, callback)
+                    }
+                    OP::AND_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::AND_ind_Y => self.indy_r(memory, emulator_cycle, register, callback),
+                    OP::AND_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
                     OP::AND_zpg_X | _ => {
-                        self.zpgxy_r(memory, emulator_cycle, self.index_x, callback)
+                        self.zpgxy_r(memory, emulator_cycle, self.index_x, register, callback)
                     }
                 } {
+                    self.accumulator = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
@@ -848,34 +851,68 @@ impl CPU {
             | OP::LDA_zpg
             | OP::LDA_zpg_X => {
                 let callback = |_, x| x;
+                let register = self.accumulator;
                 if let Some((_, result)) = match OP::from(op) {
-                    OP::LDA_X_ind => self.xind_r(memory, emulator_cycle, callback),
-                    OP::LDA_abs => self.abs_r(memory, emulator_cycle, callback),
-                    OP::LDA_abs_X => self.absxy_r(memory, emulator_cycle, self.index_x, callback),
-                    OP::LDA_abs_Y => self.absxy_r(memory, emulator_cycle, self.index_y, callback),
-                    OP::LDA_imm => self.imm_r(memory, emulator_cycle, callback),
-                    OP::LDA_ind_Y => self.indy_r(memory, emulator_cycle, callback),
-                    OP::LDA_zpg => self.zpg_r(memory, emulator_cycle, callback),
+                    OP::LDA_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
+                    OP::LDA_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::LDA_abs_X => {
+                        self.absxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                    OP::LDA_abs_Y => {
+                        self.absxy_r(memory, emulator_cycle, self.index_y, register, callback)
+                    }
+                    OP::LDA_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::LDA_ind_Y => self.indy_r(memory, emulator_cycle, register, callback),
+                    OP::LDA_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
                     OP::LDA_zpg_X | _ => {
-                        self.zpgxy_r(memory, emulator_cycle, self.index_x, callback)
+                        self.zpgxy_r(memory, emulator_cycle, self.index_x, register, callback)
                     }
                 } {
+                    self.accumulator = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 }
             }
 
-            OP::LDX_abs => todo!("{:#04X}", op),
-            OP::LDX_abs_Y => todo!("{:#04X}", op),
-            OP::LDX_imm => todo!("{:#04X}", op),
-            OP::LDX_zpg => todo!("{:#04X}", op),
-            OP::LDX_zpg_Y => todo!("{:#04X}", op),
+            OP::LDX_abs | OP::LDX_abs_Y | OP::LDX_imm | OP::LDX_zpg | OP::LDX_zpg_Y => {
+                let callback = |_, x| x;
+                let register = self.index_x;
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::LDX_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::LDX_abs_Y => {
+                        self.absxy_r(memory, emulator_cycle, self.index_y, register, callback)
+                    }
+                    OP::LDX_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::LDX_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
+                    OP::LDX_zpg_Y | _ => {
+                        self.zpgxy_r(memory, emulator_cycle, self.index_y, register, callback)
+                    }
+                } {
+                    self.index_x = result;
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                }
+            }
 
-            OP::LDY_abs => todo!("{:#04X}", op),
-            OP::LDY_abs_X => todo!("{:#04X}", op),
-            OP::LDY_imm => todo!("{:#04X}", op),
-            OP::LDY_zpg => todo!("{:#04X}", op),
-            OP::LDY_zpg_X => todo!("{:#04X}", op),
+            OP::LDY_abs | OP::LDY_abs_X | OP::LDY_imm | OP::LDY_zpg | OP::LDY_zpg_X => {
+                let callback = |_, x| x;
+                let register = self.index_y;
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::LDY_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::LDY_abs_X => {
+                        self.absxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                    OP::LDY_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::LDY_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
+                    OP::LDY_zpg_X | _ => {
+                        self.zpgxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                } {
+                    self.index_y = result;
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                }
+            }
 
             OP::LSR_A | OP::LSR_abs | OP::LSR_abs_X | OP::LSR_zpg | OP::LSR_zpg_X => {
                 let callback = |x| x >> 1;
