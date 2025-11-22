@@ -889,13 +889,37 @@ impl CPU {
 
             OP::BVS_rel => todo!("{:#04X}", op),
 
-            OP::CLC_impl => todo!("{:#04X}", op),
+            OP::CLC_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.set_flag_carry(false);
+            }
 
-            OP::CLD_impl => todo!("{:#04X}", op),
+            OP::CLD_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.set_flag_decimal(false);
+            }
 
             OP::CLI_impl => todo!("{:#04X}", op),
 
-            OP::CLV_impl => todo!("{:#04X}", op),
+            OP::CLV_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.set_flag_overflow(false);
+            }
 
             OP::CMP_X_ind => todo!("{:#04X}", op),
             OP::CMP_abs => todo!("{:#04X}", op),
@@ -935,9 +959,29 @@ impl CPU {
                 }
             }
 
-            OP::DEX_impl => todo!("{:#04X}", op),
+            OP::DEX_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.index_x -= 1;
+                self.set_flag_zero(self.index_x == 0);
+                self.set_flag_zero(self.index_x & 0b1000_0000 != 0);
+            }
 
-            OP::DEY_impl => todo!("{:#04X}", op),
+            OP::DEY_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.index_y -= 1;
+                self.set_flag_zero(self.index_y == 0);
+                self.set_flag_zero(self.index_y & 0b1000_0000 != 0);
+            }
 
             OP::EOR_X_ind
             | OP::EOR_abs
@@ -978,9 +1022,29 @@ impl CPU {
                 }
             }
 
-            OP::INX_impl => todo!("{:#04X}", op),
+            OP::INX_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.index_x += 1;
+                self.set_flag_zero(self.index_x == 0);
+                self.set_flag_zero(self.index_x & 0b1000_0000 != 0);
+            }
 
-            OP::INY_impl => todo!("{:#04X}", op),
+            OP::INY_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.index_y += 1;
+                self.set_flag_zero(self.index_y == 0);
+                self.set_flag_zero(self.index_y & 0b1000_0000 != 0);
+            }
 
             OP::ISC_X_ind => todo!("{:#04X}", op),
             OP::ISC_abs => todo!("{:#04X}", op),
@@ -1120,7 +1184,14 @@ impl CPU {
             OP::NOP_impl_0x5a => todo!("{:#04X}", op),
             OP::NOP_impl_0x7a => todo!("{:#04X}", op),
             OP::NOP_impl_0xda => todo!("{:#04X}", op),
-            OP::NOP_impl_0xea => todo!("{:#04X}", op),
+            OP::NOP_impl_0xea => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+            }
             OP::NOP_impl_0xfa => todo!("{:#04X}", op),
             OP::NOP_zpg_0x4 => todo!("{:#04X}", op),
             OP::NOP_zpg_0x44 => todo!("{:#04X}", op),
@@ -1158,11 +1229,43 @@ impl CPU {
                 }
             }
 
-            OP::PHA_impl => todo!("{:#04X}", op),
+            OP::PHA_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 3;
+                    return;
+                }
+                memory.set(0x100 + self.stack_pointer as u16, self.accumulator);
+                self.stack_pointer -= 1;
+            }
 
-            OP::PHP_impl => todo!("{:#04X}", op),
+            OP::PHP_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 3;
+                    return;
+                }
+                memory.set(
+                    0x100 + self.stack_pointer as u16,
+                    self.status_register | 0b0011_0000,
+                );
+                self.stack_pointer -= 1;
+            }
 
-            OP::PLA_impl => todo!("{:#04X}", op),
+            OP::PLA_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 4;
+                    return;
+                }
+                self.stack_pointer += 1;
+                self.accumulator = memory.get(0x100 + self.stack_pointer as u16);
+                self.set_flag_zero(self.accumulator == 0);
+                self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+            }
 
             OP::PLP_impl => todo!("{:#04X}", op),
 
@@ -1214,9 +1317,36 @@ impl CPU {
             OP::RRA_zpg => todo!("{:#04X}", op),
             OP::RRA_zpg_X => todo!("{:#04X}", op),
 
-            OP::RTI_impl => todo!("{:#04X}", op),
+            OP::RTI_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 6;
+                    return;
+                }
+                self.stack_pointer += 1;
+                self.status_register = self.status_register & 0b0011_0000
+                    | memory.get(0x100 + self.stack_pointer as u16) & 0b1100_1111;
+                self.stack_pointer += 1;
+                let lo = memory.get(0x100 + self.stack_pointer as u16);
+                self.stack_pointer += 1;
+                let hi = memory.get(0x100 + self.stack_pointer as u16);
+                self.program_counter = u16::from_le_bytes([lo, hi]);
+            }
 
-            OP::RTS_impl => todo!("{:#04X}", op),
+            OP::RTS_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 6;
+                    return;
+                }
+                self.stack_pointer += 1;
+                let lo = memory.get(0x100 + self.stack_pointer as u16);
+                self.stack_pointer += 1;
+                let hi = memory.get(0x100 + self.stack_pointer as u16);
+                self.program_counter = u16::from_le_bytes([lo, hi]) + 1;
+            }
 
             OP::SAX_X_ind => todo!("{:#04X}", op),
             OP::SAX_abs => todo!("{:#04X}", op),
@@ -1256,9 +1386,25 @@ impl CPU {
 
             OP::SBX_imm => todo!("{:#04X}", op),
 
-            OP::SEC_impl => todo!("{:#04X}", op),
+            OP::SEC_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.set_flag_carry(true);
+            }
 
-            OP::SED_impl => todo!("{:#04X}", op),
+            OP::SED_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.set_flag_decimal(true);
+            }
 
             OP::SEI_impl => todo!("{:#04X}", op),
 
