@@ -770,14 +770,37 @@ impl CPU {
 
             OP::DEY_impl => todo!("{:#04X}", op),
 
-            OP::EOR_X_ind => todo!("{:#04X}", op),
-            OP::EOR_abs => todo!("{:#04X}", op),
-            OP::EOR_abs_X => todo!("{:#04X}", op),
-            OP::EOR_abs_Y => todo!("{:#04X}", op),
-            OP::EOR_imm => todo!("{:#04X}", op),
-            OP::EOR_ind_Y => todo!("{:#04X}", op),
-            OP::EOR_zpg => todo!("{:#04X}", op),
-            OP::EOR_zpg_X => todo!("{:#04X}", op),
+            OP::EOR_X_ind
+            | OP::EOR_abs
+            | OP::EOR_abs_X
+            | OP::EOR_abs_Y
+            | OP::EOR_imm
+            | OP::EOR_ind_Y
+            | OP::EOR_zpg
+            | OP::EOR_zpg_X => {
+                let callback = |reg, x| reg ^ x;
+                let register = self.accumulator;
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::EOR_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
+                    OP::EOR_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::EOR_abs_X => {
+                        self.absxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                    OP::EOR_abs_Y => {
+                        self.absxy_r(memory, emulator_cycle, self.index_y, register, callback)
+                    }
+                    OP::EOR_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::EOR_ind_Y => self.indy_r(memory, emulator_cycle, register, callback),
+                    OP::EOR_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
+                    OP::EOR_zpg_X | _ => {
+                        self.zpgxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                } {
+                    self.accumulator = result;
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                }
+            }
 
             OP::INC_abs | OP::INC_abs_X | OP::INC_zpg | OP::INC_zpg_X => {
                 let callback = |x| x + 1;
@@ -960,14 +983,37 @@ impl CPU {
             OP::NOP_zpg_X_0xd4 => todo!("{:#04X}", op),
             OP::NOP_zpg_X_0xf4 => todo!("{:#04X}", op),
 
-            OP::ORA_X_ind => todo!("{:#04X}", op),
-            OP::ORA_abs => todo!("{:#04X}", op),
-            OP::ORA_abs_X => todo!("{:#04X}", op),
-            OP::ORA_abs_Y => todo!("{:#04X}", op),
-            OP::ORA_imm => todo!("{:#04X}", op),
-            OP::ORA_ind_Y => todo!("{:#04X}", op),
-            OP::ORA_zpg => todo!("{:#04X}", op),
-            OP::ORA_zpg_X => todo!("{:#04X}", op),
+            OP::ORA_X_ind
+            | OP::ORA_abs
+            | OP::ORA_abs_X
+            | OP::ORA_abs_Y
+            | OP::ORA_imm
+            | OP::ORA_ind_Y
+            | OP::ORA_zpg
+            | OP::ORA_zpg_X => {
+                let callback = |reg, x| reg | x;
+                let register = self.accumulator;
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::ORA_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
+                    OP::ORA_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::ORA_abs_X => {
+                        self.absxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                    OP::ORA_abs_Y => {
+                        self.absxy_r(memory, emulator_cycle, self.index_y, register, callback)
+                    }
+                    OP::ORA_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::ORA_ind_Y => self.indy_r(memory, emulator_cycle, register, callback),
+                    OP::ORA_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
+                    OP::ORA_zpg_X | _ => {
+                        self.zpgxy_r(memory, emulator_cycle, self.index_x, register, callback)
+                    }
+                } {
+                    self.accumulator = result;
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                }
+            }
 
             OP::PHA_impl => todo!("{:#04X}", op),
 
