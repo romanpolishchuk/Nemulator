@@ -1,3 +1,0 @@
-8000  A9 01    LDA #$01                         A:00 X:00 Y:00 P:20 SP:FD PPU:  0,  0 CYC:7
-8002  AD 0B 80 LDA $800B                        A:01 X:00 Y:00 P:20 SP:FD PPU:  0,  0 CYC:9
-8005  BD 0C 80 LDA $800C, X                     A:02 X:00 Y:00 P:20 SP:FD PPU:  0,  0 CYC:13
