@@ -1223,14 +1223,36 @@ impl CPU {
             OP::SAX_zpg => todo!("{:#04X}", op),
             OP::SAX_zpg_Y => todo!("{:#04X}", op),
 
-            OP::SBC_X_ind => todo!("{:#04X}", op),
-            OP::SBC_abs => todo!("{:#04X}", op),
-            OP::SBC_abs_X => todo!("{:#04X}", op),
-            OP::SBC_abs_Y => todo!("{:#04X}", op),
-            OP::SBC_imm => todo!("{:#04X}", op),
-            OP::SBC_ind_Y => todo!("{:#04X}", op),
-            OP::SBC_zpg => todo!("{:#04X}", op),
-            OP::SBC_zpg_X => todo!("{:#04X}", op),
+            OP::SBC_X_ind
+            | OP::SBC_abs
+            | OP::SBC_abs_X
+            | OP::SBC_abs_Y
+            | OP::SBC_imm
+            | OP::SBC_ind_Y
+            | OP::SBC_zpg
+            | OP::SBC_zpg_X => {
+                let offset: u8 = if self.get_flag_carry() { 0 } else { 1 };
+                let callback = |acc, x| acc - x - offset;
+                let register = self.accumulator;
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::SBC_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
+                    OP::SBC_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::SBC_abs_X => self.absx_r(memory, emulator_cycle, register, callback),
+                    OP::SBC_abs_Y => self.absy_r(memory, emulator_cycle, register, callback),
+                    OP::SBC_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::SBC_ind_Y => self.indy_r(memory, emulator_cycle, register, callback),
+                    OP::SBC_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
+                    OP::SBC_zpg_X | _ => self.zpgx_r(memory, emulator_cycle, register, callback),
+                } {
+                    self.set_flag_carry(result > register);
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_overflow(
+                        (result ^ register) & (result ^ !value) & 0b1000_0000 != 0,
+                    );
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                    self.accumulator = result;
+                }
+            }
 
             OP::SBX_imm => todo!("{:#04X}", op),
 
