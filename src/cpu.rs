@@ -577,6 +577,141 @@ impl CPU {
         Some((value, result))
     }
 
+    fn xind_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::XInd);
+            self.cycle += 6;
+            return;
+        }
+
+        let lookup = memory.get(self.program_counter) + self.index_x;
+        self.program_counter += 1;
+
+        let address =
+            u16::from_le_bytes([memory.get(lookup as u16), memory.get(lookup as u16 + 1)]);
+
+        memory.set(address, register);
+    }
+
+    fn abs_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::Abs);
+            self.cycle += 4;
+            return;
+        }
+
+        let lo = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let hi = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let address = u16::from_le_bytes([lo, hi]);
+        memory.set(address, register);
+    }
+
+    fn absx_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::AbsX);
+            self.cycle += 5;
+            return;
+        }
+
+        let lo = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let hi = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let address = u16::from_le_bytes([lo, hi]) + self.index_x as u16;
+        memory.set(address, register);
+    }
+
+    fn absy_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::AbsY);
+            self.cycle += 5;
+            return;
+        }
+
+        let lo = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let hi = memory.get(self.program_counter);
+        self.program_counter += 1;
+        let address = u16::from_le_bytes([lo, hi]) + self.index_y as u16;
+        memory.set(address, register);
+    }
+
+    fn indy_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        let lookup = memory.get(self.program_counter);
+        let mut lo = memory.get(lookup as u16);
+        let mut hi = memory.get(lookup as u16 + 1);
+        let overflow: bool;
+        (lo, overflow) = lo.overflowing_add(self.index_y);
+        if overflow {
+            hi += 1;
+        }
+
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::IndY);
+            self.cycle += 5;
+            if overflow {
+                self.cycle += 1;
+            }
+
+            return;
+        }
+
+        self.program_counter += 1;
+
+        let address = u16::from_le_bytes([lo, hi]);
+
+        memory.set(address, register);
+    }
+
+    fn zpg_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::Zpg);
+            self.cycle += 3;
+            return;
+        }
+
+        let address = memory.get(self.program_counter) as u16;
+        self.program_counter += 1;
+
+        memory.set(address, register);
+    }
+
+    fn zpgx_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::Zpg);
+            self.cycle += 3;
+            return;
+        }
+
+        let address = (memory.get(self.program_counter).wrapping_add(self.index_x)) as u16;
+        self.program_counter += 1;
+
+        memory.set(address, register);
+    }
+
+    fn zpgy_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
+        if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(memory, OPMode::Zpg);
+            self.cycle += 3;
+            return;
+        }
+
+        let address = (memory.get(self.program_counter).wrapping_add(self.index_y)) as u16;
+        self.program_counter += 1;
+
+        memory.set(address, register);
+    }
+
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
         if self.cycle - 1 > emulator_cycle {
             return;
@@ -1072,35 +1207,95 @@ impl CPU {
             OP::SRE_zpg => todo!("{:#04X}", op),
             OP::SRE_zpg_X => todo!("{:#04X}", op),
 
-            OP::STA_X_ind => todo!("{:#04X}", op),
-            OP::STA_abs => todo!("{:#04X}", op),
-            OP::STA_abs_X => todo!("{:#04X}", op),
-            OP::STA_abs_Y => todo!("{:#04X}", op),
-            OP::STA_ind_Y => todo!("{:#04X}", op),
-            OP::STA_zpg => todo!("{:#04X}", op),
-            OP::STA_zpg_X => todo!("{:#04X}", op),
+            OP::STA_X_ind => self.xind_w(memory, emulator_cycle, self.accumulator),
+            OP::STA_abs => self.abs_w(memory, emulator_cycle, self.accumulator),
+            OP::STA_abs_X => self.absx_w(memory, emulator_cycle, self.accumulator),
+            OP::STA_abs_Y => self.absy_w(memory, emulator_cycle, self.accumulator),
+            OP::STA_ind_Y => self.indy_w(memory, emulator_cycle, self.accumulator),
+            OP::STA_zpg => self.zpg_w(memory, emulator_cycle, self.accumulator),
+            OP::STA_zpg_X => self.zpgx_w(memory, emulator_cycle, self.accumulator),
 
-            OP::STX_abs => todo!("{:#04X}", op),
-            OP::STX_zpg => todo!("{:#04X}", op),
-            OP::STX_zpg_Y => todo!("{:#04X}", op),
+            OP::STX_abs => self.abs_w(memory, emulator_cycle, self.index_x),
+            OP::STX_zpg => self.zpg_w(memory, emulator_cycle, self.index_x),
+            OP::STX_zpg_Y => self.zpgy_w(memory, emulator_cycle, self.index_x),
 
-            OP::STY_abs => todo!("{:#04X}", op),
-            OP::STY_zpg => todo!("{:#04X}", op),
-            OP::STY_zpg_X => todo!("{:#04X}", op),
+            OP::STY_abs => self.abs_w(memory, emulator_cycle, self.index_y),
+            OP::STY_zpg => self.zpg_w(memory, emulator_cycle, self.index_y),
+            OP::STY_zpg_X => self.zpgx_w(memory, emulator_cycle, self.index_y),
 
             OP::TAS_abs_Y => todo!("{:#04X}", op),
 
-            OP::TAX_impl => todo!("{:#04X}", op),
+            OP::TAX_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.index_x = self.accumulator;
+                self.set_flag_zero(self.index_x == 0);
+                self.set_flag_negative(self.index_x & 0b1000_0000 != 0);
+            }
 
-            OP::TAY_impl => todo!("{:#04X}", op),
+            OP::TAY_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.index_y = self.accumulator;
+                self.set_flag_zero(self.index_y == 0);
+                self.set_flag_negative(self.index_y & 0b1000_0000 != 0);
+            }
 
-            OP::TSX_impl => todo!("{:#04X}", op),
+            OP::TSX_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.index_x = self.stack_pointer;
+                self.set_flag_zero(self.index_x == 0);
+                self.set_flag_negative(self.index_x & 0b1000_0000 != 0);
+            }
 
-            OP::TXA_impl => todo!("{:#04X}", op),
+            OP::TXA_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.accumulator = self.index_x;
+                self.set_flag_zero(self.accumulator == 0);
+                self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+            }
 
-            OP::TXS_impl => todo!("{:#04X}", op),
+            OP::TXS_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.stack_pointer = self.index_x;
+                self.set_flag_zero(self.stack_pointer == 0);
+                self.set_flag_negative(self.stack_pointer & 0b1000_0000 != 0);
+            }
 
-            OP::TYA_impl => todo!("{:#04X}", op),
+            OP::TYA_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                self.accumulator = self.index_y;
+                self.set_flag_zero(self.accumulator == 0);
+                self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+            }
 
             OP::USBC_imm => todo!("{:#04X}", op),
         }
