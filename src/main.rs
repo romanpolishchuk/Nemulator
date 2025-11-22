@@ -56,7 +56,7 @@ fn main() {
     };
 
     let mut emulator = Emulator {
-        cpu: CPU::new(&memory),
+        cpu: CPU::new(&memory, "log.txt"),
         memory,
         cycle: 7,
     };

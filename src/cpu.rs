@@ -1,7 +1,7 @@
 mod opcodes;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::result;
+use std::path::Path;
 
 use opcodes::OP;
 
@@ -35,12 +35,13 @@ pub struct CPU {
 }
 
 impl CPU {
-    pub fn new(memory: &Memory) -> CPU {
+    pub fn new(memory: &Memory, log_name: &str) -> CPU {
+        fs::create_dir_all("./logs/").unwrap();
         let log_file = OpenOptions::new()
             .write(true)
             .truncate(true)
             .create(true)
-            .open("log.txt")
+            .open(Path::new("./logs/").join(log_name))
             .unwrap();
 
         CPU {
@@ -132,7 +133,7 @@ impl CPU {
         }
     }
 
-    fn log_instr(&mut self, bytes: Vec<u8>, mode: OPMode, name: &str) {
+    fn log_instr(&mut self, bytes: Vec<u8>, mode: OPMode) {
         let mut line = String::from("");
         line += &format!("{:04X}  ", self.program_counter);
         for byte in bytes.iter() {
@@ -142,7 +143,7 @@ impl CPU {
             line += "   ";
         }
 
-        line += &format!("{} ", name);
+        line += &format!("{} ", &OP::from(bytes[0]).to_string());
         line += &format!(
             "{}",
             match mode {
@@ -191,12 +192,19 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 6;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                    memory.get(self.program_counter + 2),
+                ],
+                OPMode::Abs,
+            );
+            self.cycle += 6;
+
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -209,12 +217,6 @@ impl CPU {
         let result = callback(value);
 
         memory.set(address, result);
-
-        self.log_instr(
-            vec![op, address_lb, address_hb],
-            OPMode::Abs,
-            &OP::from(op).to_string(),
-        );
 
         Some((value, result))
     }
@@ -229,12 +231,19 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 7;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                    memory.get(self.program_counter + 2),
+                ],
+                OPMode::AbsX,
+            );
+            self.cycle += 7;
+
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -249,12 +258,6 @@ impl CPU {
 
         memory.set(address, result);
 
-        self.log_instr(
-            vec![op, address_lb, address_hb],
-            OPMode::AbsX,
-            &OP::from(op).to_string(),
-        );
-
         Some((value, result))
     }
 
@@ -268,12 +271,17 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 5;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                ],
+                OPMode::Zpg,
+            );
+            self.cycle += 5;
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let address = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -282,8 +290,6 @@ impl CPU {
         let result = callback(value);
 
         memory.set(address.into(), result);
-
-        self.log_instr(vec![op, address], OPMode::Zpg, &OP::from(op).to_string());
 
         Some((value, result))
     }
@@ -298,12 +304,17 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 6;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                ],
+                OPMode::ZpgX,
+            );
+            self.cycle += 6;
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let mut address = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -314,8 +325,6 @@ impl CPU {
         let result = callback(value);
 
         memory.set(address.into(), result);
-
-        self.log_instr(vec![op, address], OPMode::ZpgX, &OP::from(op).to_string());
 
         Some((value, result))
     }
@@ -330,19 +339,17 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 2;
             self.program_counter -= 1;
+            self.log_instr(vec![memory.get(self.program_counter)], OPMode::A);
+            self.cycle += 2;
+
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let value = self.accumulator;
         let result = callback(value);
 
         self.accumulator = result;
-
-        self.log_instr(vec![op], OPMode::A, &OP::from(op).to_string());
 
         Some((value, result))
     }
@@ -357,12 +364,18 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 4;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                    memory.get(self.program_counter + 2),
+                ],
+                OPMode::Abs,
+            );
+            self.cycle += 4;
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -375,12 +388,6 @@ impl CPU {
         let result = callback(self.accumulator, memory.get(address));
 
         self.accumulator = result;
-
-        self.log_instr(
-            vec![op, address_lb, address_hb],
-            OPMode::Abs,
-            &OP::from(op).to_string(),
-        );
 
         Some((value, result))
     }
@@ -397,6 +404,16 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                    memory.get(self.program_counter + 2),
+                ],
+                OPMode::AbsX,
+            );
+
             let (_, is_overflow) = memory.get(self.program_counter).overflowing_add(index);
             if is_overflow {
                 self.cycle += 5;
@@ -404,11 +421,8 @@ impl CPU {
                 self.cycle += 4;
             }
 
-            self.program_counter -= 1;
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let address_lb = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -423,12 +437,6 @@ impl CPU {
 
         self.accumulator = result;
 
-        self.log_instr(
-            vec![op, address_lb, address_hb],
-            OPMode::AbsX,
-            &OP::from(op).to_string(),
-        );
-
         Some((value, result))
     }
 
@@ -442,12 +450,18 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 6;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                    memory.get(self.program_counter + 2),
+                ],
+                OPMode::Ind,
+            );
+            self.cycle += 6;
             return None;
         }
-
-        let op = memory.get(self.program_counter - 1);
 
         let mut lookup = memory.get(self.program_counter);
         self.program_counter += 1;
@@ -462,12 +476,6 @@ impl CPU {
 
         self.accumulator = result;
 
-        self.log_instr(
-            vec![op, memory.get(lookup as u16), memory.get(lookup as u16 + 1)],
-            OPMode::Ind,
-            &OP::from(op).to_string(),
-        );
-
         Some((value, result))
     }
 
@@ -481,12 +489,18 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 2;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                ],
+                OPMode::Imm,
+            );
+            self.cycle += 2;
             return None;
         }
 
-        let op = memory.get(self.program_counter - 1);
         let imm = memory.get(self.program_counter);
         self.program_counter += 1;
 
@@ -494,8 +508,6 @@ impl CPU {
         let result = callback(self.accumulator, imm);
 
         self.accumulator = result;
-
-        self.log_instr(vec![op, imm], OPMode::Imm, &OP::from(op).to_string());
 
         Some((value, result))
     }
@@ -519,15 +531,22 @@ impl CPU {
         }
 
         if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                ],
+                OPMode::IndY,
+            );
             self.cycle += 5;
             if overflow {
                 self.cycle += 1;
             }
-            self.program_counter -= 1;
+
             return None;
         }
 
-        let op = memory.get(self.program_counter - 1);
         self.program_counter += 1;
 
         let address = u16::from_le_bytes([lo, hi]);
@@ -535,8 +554,6 @@ impl CPU {
         let value = self.accumulator;
         let result = callback(self.accumulator, memory.get(address));
         self.accumulator = result;
-
-        self.log_instr(vec![op, lookup], OPMode::IndY, &OP::from(op).to_string());
 
         Some((value, result))
     }
@@ -551,12 +568,19 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 3;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                ],
+                OPMode::Zpg,
+            );
+            self.cycle += 3;
+
             return None;
         }
 
-        let op = memory.get(self.program_counter - 1);
         let lookup = memory.get(self.program_counter);
         let address = lookup as u16;
         self.program_counter += 1;
@@ -564,8 +588,6 @@ impl CPU {
         let value = self.accumulator;
         let result = callback(self.accumulator, memory.get(address));
         self.accumulator = result;
-
-        self.log_instr(vec![op, lookup], OPMode::Zpg, &OP::from(op).to_string());
 
         Some((value, result))
     }
@@ -582,12 +604,19 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.cycle += 4;
             self.program_counter -= 1;
+            self.log_instr(
+                vec![
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                ],
+                OPMode::ZpgX,
+            );
+            self.cycle += 4;
+
             return None;
         }
 
-        let op = memory.get(self.program_counter - 1);
         let lookup = memory.get(self.program_counter).wrapping_add(index);
         self.program_counter += 1;
         let address = lookup as u16;
@@ -595,8 +624,6 @@ impl CPU {
         let value = self.accumulator;
         let result = callback(self.accumulator, memory.get(address));
         self.accumulator = result;
-
-        self.log_instr(vec![op, lookup], OPMode::ZpgX, &OP::from(op).to_string());
 
         Some((value, result))
     }
@@ -787,7 +814,18 @@ impl CPU {
             OP::JAM_0xd2 => todo!("{:#04X}", op),
             OP::JAM_0xf2 => todo!("{:#04X}", op),
 
-            OP::JMP_abs => todo!("{:#04X}", op),
+            OP::JMP_abs => {
+                if self.cycle == emulator_cycle {
+                    self.cycle += 3;
+                    self.program_counter -= 1;
+                    return;
+                }
+
+                self.program_counter = u16::from_le_bytes([
+                    memory.get(self.program_counter),
+                    memory.get(self.program_counter + 1),
+                ]);
+            }
             OP::JMP_ind => todo!("{:#04X}", op),
 
             OP::JSR_abs => todo!("{:#04X}", op),
@@ -1036,6 +1074,8 @@ impl CPU {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use crate::rom_reader;
 
     use super::*;
@@ -1051,7 +1091,7 @@ mod tests {
             chr_rom: file.chr_rom,
         };
 
-        let mut cpu = CPU::new(&memory);
+        let mut cpu = CPU::new(&memory, "log_inc.txt");
 
         assert!(memory.get(0x02) == 0 as u8);
 
@@ -1073,7 +1113,7 @@ mod tests {
             chr_rom: file.chr_rom,
         };
 
-        let mut cpu = CPU::new(&memory);
+        let mut cpu = CPU::new(&memory, "log_lda.txt");
 
         assert!(cpu.accumulator == 0);
         cpu.cycle(&mut memory, 7);
