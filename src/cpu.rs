@@ -814,6 +814,9 @@ impl CPU {
             return;
         }
 
+        let mut set_interrupt = false;
+        let mut interrupt_value = false;
+
         let op = memory.get(self.program_counter);
         self.program_counter += 1;
 
@@ -958,7 +961,16 @@ impl CPU {
                 self.set_flag_decimal(false);
             }
 
-            OP::CLI_impl => todo!("{:#04X}", op),
+            OP::CLI_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                set_interrupt = true;
+                interrupt_value = false;
+            }
 
             OP::CLV_impl => {
                 if self.cycle == emulator_cycle {
@@ -1392,7 +1404,19 @@ impl CPU {
                 self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
             }
 
-            OP::PLP_impl => todo!("{:#04X}", op),
+            OP::PLP_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 4;
+                    return;
+                }
+                self.stack_pointer += 1;
+                self.status_register = self.status_register & 0b0000_0100
+                    | (memory.get(0x100 + self.stack_pointer as u16) & 0b1111_1011);
+                set_interrupt = true;
+                interrupt_value = memory.get(0x100 + self.stack_pointer as u16) & 0b0000_0100 != 0;
+            }
 
             OP::RLA_X_ind => todo!("{:#04X}", op),
             OP::RLA_abs => todo!("{:#04X}", op),
@@ -1537,7 +1561,16 @@ impl CPU {
                 self.set_flag_decimal(true);
             }
 
-            OP::SEI_impl => todo!("{:#04X}", op),
+            OP::SEI_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 2;
+                    return;
+                }
+                set_interrupt = true;
+                interrupt_value = true;
+            }
 
             OP::SHA_abs_Y => todo!("{:#04X}", op),
             OP::SHA_ind_Y => todo!("{:#04X}", op),
@@ -1653,6 +1686,35 @@ impl CPU {
             }
 
             OP::USBC_imm => todo!("{:#04X}", op),
+        }
+
+        if self.nmi | self.irq {
+            memory.set(
+                0x100 + self.stack_pointer as u16,
+                (self.program_counter >> 8) as u8,
+            );
+            self.stack_pointer -= 1;
+            memory.set(
+                0x100 + self.stack_pointer as u16,
+                self.program_counter as u8,
+            );
+            self.stack_pointer -= 1;
+            memory.set(
+                0x100 + self.stack_pointer as u16,
+                self.status_register & 0b11101111,
+            );
+            self.stack_pointer -= 1;
+            self.set_flag_interrupt_disable(true);
+
+            if self.nmi {
+                self.program_counter = u16::from_le_bytes([memory.get(0xFFFA), memory.get(0xFFFB)]);
+            } else {
+                self.program_counter = u16::from_le_bytes([memory.get(0xFFFE), memory.get(0xFFFF)]);
+            }
+        }
+
+        if set_interrupt {
+            self.set_flag_interrupt_disable(interrupt_value);
         }
     }
 }
