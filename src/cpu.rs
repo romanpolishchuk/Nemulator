@@ -53,7 +53,7 @@ impl CPU {
             index_y: 0,
             program_counter: u16::from_le_bytes([memory.get(0xFFFC), memory.get(0xFFFD)]),
             stack_pointer: 0xFD,
-            status_register: 0b0010_0000,
+            status_register: 0b0010_0100,
             cycle: 7,
             log_file,
             irq: false,
@@ -62,66 +62,66 @@ impl CPU {
     }
 
     fn get_flag_carry(&self) -> bool {
-        self.status_register & 0b1 == 0b1
+        self.status_register & 0b0000_0001 != 0
     }
     fn set_flag_carry(&mut self, value: bool) {
         if value {
-            self.status_register |= 0b1;
+            self.status_register |= 0b0000_0001;
         } else {
             self.status_register &= 0b1111_1110;
         }
     }
 
     fn get_flag_zero(&self) -> bool {
-        self.status_register & 0b10 == 0b10
+        self.status_register & 0b0000_0010 != 0
     }
     fn set_flag_zero(&mut self, value: bool) {
         if value {
-            self.status_register |= 0b10;
+            self.status_register |= 0b0000_0010;
         } else {
             self.status_register &= 0b1111_1101;
         }
     }
 
     fn get_flag_interrupt_disable(&self) -> bool {
-        self.status_register & 0b100 == 0b100
+        self.status_register & 0b0000_0100 != 0
     }
     fn set_flag_interrupt_disable(&mut self, value: bool) {
         if value {
-            self.status_register |= 0b100;
+            self.status_register |= 0b0000_0100;
         } else {
             self.status_register &= 0b1111_1011;
         }
     }
 
     fn get_flag_decimal(&self) -> bool {
-        self.status_register & 0b1000 == 0b1000
+        self.status_register & 0b0000_1000 != 0
     }
     fn set_flag_decimal(&mut self, value: bool) {
         if value {
-            self.status_register |= 0b1000;
+            self.status_register |= 0b0000_1000;
         } else {
             self.status_register &= 0b1111_0111;
         }
     }
 
     fn get_flag_b(&self) -> bool {
-        self.status_register & 0b1000_0 == 0b1000_0
+        self.status_register & 0b0001_0000 != 0
     }
     fn set_flag_b(&mut self, value: bool) {
         if value {
-            self.status_register |= 0b1000_0;
+            self.status_register |= 0b0001_0000;
         } else {
             self.status_register &= 0b1110_1111;
         }
     }
 
     fn get_flag_overflow(&self) -> bool {
-        self.status_register & 0b1000_00 == 0b1000_000
+        self.status_register & 0b0100_0000 != 0
     }
     fn set_flag_overflow(&mut self, value: bool) {
         if value {
-            self.status_register |= 0b1000_000;
+            self.status_register |= 0b0100_0000;
         } else {
             self.status_register &= 0b1011_1111;
         }
@@ -189,8 +189,12 @@ impl CPU {
                     (self.program_counter as i32 + 2 as i32 + (bytes[1] as i8) as i32) as u16
                 ),
                 OPMode::Zpg => format!(
-                    "{:02X} {:02X}     {} ${:02X}",
-                    bytes[0], bytes[1], name, bytes[1]
+                    "{:02X} {:02X}     {} ${:02X} = {:02X}",
+                    bytes[0],
+                    bytes[1],
+                    name,
+                    bytes[1],
+                    memory.get(bytes[1] as u16)
                 ),
                 OPMode::ZpgX => format!(
                     "{:02X} {:02X}     {} ${:02X},X",
@@ -539,7 +543,7 @@ impl CPU {
         let overflow: bool;
         (lo, overflow) = lo.overflowing_add(self.index_y);
         if overflow {
-            hi += 1;
+            hi = hi.wrapping_add(1);
         }
 
         if self.cycle == emulator_cycle {
@@ -935,7 +939,35 @@ impl CPU {
 
             OP::BPL_rel => self.branch(memory, emulator_cycle, !self.get_flag_negative()),
 
-            OP::BRK_impl => todo!("{:#04X}", op),
+            OP::BRK_impl => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter -= 1;
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 7;
+                    return;
+                }
+
+                self.program_counter += 1;
+
+                memory.set(
+                    0x100 + self.stack_pointer as u16,
+                    (self.program_counter >> 8) as u8,
+                );
+                self.stack_pointer -= 1;
+                memory.set(
+                    0x100 + self.stack_pointer as u16,
+                    self.program_counter as u8,
+                );
+                self.stack_pointer -= 1;
+                memory.set(
+                    0x100 + self.stack_pointer as u16,
+                    self.status_register & 0b11101111,
+                );
+                self.stack_pointer -= 1;
+                self.set_flag_interrupt_disable(true);
+
+                self.program_counter = u16::from_le_bytes([memory.get(0xFFFE), memory.get(0xFFFF)]);
+            }
 
             OP::BVC_rel => self.branch(memory, emulator_cycle, !self.get_flag_overflow()),
 
@@ -1010,13 +1042,37 @@ impl CPU {
                 }
             }
 
-            OP::CPX_abs => todo!("{:#04X}", op),
-            OP::CPX_imm => todo!("{:#04X}", op),
-            OP::CPX_zpg => todo!("{:#04X}", op),
+            OP::CPX_abs | OP::CPX_imm | OP::CPX_zpg => {
+                let register = self.index_x;
+                let callback = |acc: u8, x: u8| acc.wrapping_sub(x);
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::CPX_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::CPX_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::CPX_zpg | _ => self.zpg_r(memory, emulator_cycle, register, callback),
+                } {
+                    self.set_flag_carry(register >= value);
+                    self.set_flag_zero(register == value);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
+                }
+            }
 
-            OP::CPY_abs => todo!("{:#04X}", op),
-            OP::CPY_imm => todo!("{:#04X}", op),
-            OP::CPY_zpg => todo!("{:#04X}", op),
+            OP::CPY_abs | OP::CPY_imm | OP::CPY_zpg => {
+                let register = self.index_y;
+                let callback = |acc: u8, x: u8| acc.wrapping_sub(x);
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::CPY_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::CPY_imm => self.imm_r(memory, emulator_cycle, register, callback),
+                    OP::CPY_zpg | _ => self.zpg_r(memory, emulator_cycle, register, callback),
+                } {
+                    self.set_flag_carry(register >= value);
+                    self.set_flag_zero(register == value);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return;
+                }
+            }
 
             OP::DCP_X_ind => todo!("{:#04X}", op),
             OP::DCP_abs => todo!("{:#04X}", op),
@@ -1027,7 +1083,7 @@ impl CPU {
             OP::DCP_zpg_X => todo!("{:#04X}", op),
 
             OP::DEC_abs | OP::DEC_abs_X | OP::DEC_zpg | OP::DEC_zpg_X => {
-                let callback = |x| x - 1;
+                let callback = |x: u8| x.wrapping_sub(1);
                 if let Some((_, result)) = match OP::from(op) {
                     OP::DEC_abs => self.abs_rmw(memory, emulator_cycle, callback),
                     OP::DEC_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
@@ -1094,7 +1150,7 @@ impl CPU {
             }
 
             OP::INC_abs | OP::INC_abs_X | OP::INC_zpg | OP::INC_zpg_X => {
-                let callback = |x| x + 1;
+                let callback = |x: u8| x.wrapping_add(1);
                 if let Some((_, result)) = match OP::from(op) {
                     OP::INC_abs => self.abs_rmw(memory, emulator_cycle, callback),
                     OP::INC_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
@@ -1115,7 +1171,7 @@ impl CPU {
                     self.cycle += 2;
                     return;
                 }
-                self.index_x += 1;
+                self.index_x = self.index_x.wrapping_add(1);
                 self.set_flag_zero(self.index_x == 0);
                 self.set_flag_zero(self.index_x & 0b1000_0000 != 0);
             }
@@ -1127,7 +1183,7 @@ impl CPU {
                     self.cycle += 2;
                     return;
                 }
-                self.index_y += 1;
+                self.index_y = self.index_y.wrapping_add(1);
                 self.set_flag_zero(self.index_y == 0);
                 self.set_flag_zero(self.index_y & 0b1000_0000 != 0);
             }
@@ -1413,7 +1469,8 @@ impl CPU {
                 }
                 self.stack_pointer += 1;
                 self.status_register = self.status_register & 0b0000_0100
-                    | (memory.get(0x100 + self.stack_pointer as u16) & 0b1111_1011);
+                    | memory.get(0x100 + self.stack_pointer as u16) & 0b1110_1011;
+                self.status_register |= 0b0010_0000;
                 set_interrupt = true;
                 interrupt_value = memory.get(0x100 + self.stack_pointer as u16) & 0b0000_0100 != 0;
             }
@@ -1478,8 +1535,7 @@ impl CPU {
                     return;
                 }
                 self.stack_pointer += 1;
-                self.status_register = self.status_register & 0b0011_0000
-                    | memory.get(0x100 + self.stack_pointer as u16) & 0b1100_1111;
+                self.status_register = memory.get(0x100 + self.stack_pointer as u16) & 0b1110_1111;
                 self.stack_pointer += 1;
                 let lo = memory.get(0x100 + self.stack_pointer as u16);
                 self.stack_pointer += 1;
@@ -1515,7 +1571,7 @@ impl CPU {
             | OP::SBC_zpg
             | OP::SBC_zpg_X => {
                 let offset: u8 = if self.get_flag_carry() { 0 } else { 1 };
-                let callback = |acc, x| acc - x - offset;
+                let callback = |acc: u8, x: u8| acc.wrapping_sub(x).wrapping_sub(offset);
                 let register = self.accumulator;
                 if let Some((value, result)) = match OP::from(op) {
                     OP::SBC_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
@@ -1711,6 +1767,9 @@ impl CPU {
             } else {
                 self.program_counter = u16::from_le_bytes([memory.get(0xFFFE), memory.get(0xFFFF)]);
             }
+
+            // TODO: It has to skip cycles before jumping to the interrupt subroutine. Now it jumps, then skips cycles
+            self.cycle += 7;
         }
 
         if set_interrupt {

@@ -17,7 +17,7 @@ impl Memory {
             0x2000..=0x3FFF => self.ppu_registers[(address & 0x0007) as usize],
             0x4000..=0x401F => self.apu_io[(address - 0x4000) as usize],
             0x8000..=0xFFFF => self.prg_rom[(address - 0x8000) as usize % self.prg_rom.len()],
-            _ => todo!(),
+            _ => todo!("{:X}", address),
         }
     }
 
