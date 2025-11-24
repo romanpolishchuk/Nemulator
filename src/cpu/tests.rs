@@ -98,7 +98,7 @@ fn cpu_full() {
 
         assert!(
             cpu_log_line[0..11] == reference_log_line[0..11],
-            "\nLine: {}\n{},\n{}",
+            "\nLine: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {}",
@@ -118,7 +118,7 @@ fn cpu_full() {
 
         assert!(
             cpu_log_line[50..52] == reference_log_line[50..52],
-            "\nLine: {}\n{},\n{}",
+            "\nLine: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {} {}",
@@ -140,7 +140,7 @@ fn cpu_full() {
 
         assert!(
             cpu_log_line[55..57] == reference_log_line[55..57],
-            "\nLine: {}\n{},\n{}",
+            "\nLine: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {} {}",
@@ -162,7 +162,7 @@ fn cpu_full() {
 
         assert!(
             cpu_log_line[60..62] == reference_log_line[60..62],
-            "\nLine: {}\n{},\n{}",
+            "\nLine: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {} {}",
@@ -184,7 +184,7 @@ fn cpu_full() {
 
         assert!(
             cpu_log_line[65..67] == reference_log_line[65..67],
-            "Line: {}\n{},\n{}",
+            "Line: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {} {}",
@@ -206,7 +206,7 @@ fn cpu_full() {
 
         assert!(
             cpu_log_line[71..73] == reference_log_line[71..73],
-            "Line: {}\n{},\n{}",
+            "Line: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {} {}",
@@ -228,7 +228,7 @@ fn cpu_full() {
 
         assert!(
             cpu_log_line[85..] == reference_log_line[85..],
-            "Line: {}\n{},\n{}",
+            "Line: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {}",
