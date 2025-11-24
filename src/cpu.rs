@@ -1,4 +1,8 @@
 mod opcodes;
+
+#[cfg(test)]
+mod tests;
+
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
@@ -813,9 +817,9 @@ impl CPU {
         self.program_counter += offset as u16;
     }
 
-    pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) {
+    pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) -> Result<(), String> {
         if self.cycle - 1 > emulator_cycle {
-            return;
+            return Ok(());
         }
 
         let mut set_interrupt = false;
@@ -854,14 +858,14 @@ impl CPU {
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                     self.accumulator = result;
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
-            OP::ALR_imm => todo!("{:#04X}", op),
+            OP::ALR_imm => return Err(format!("{:#04X}", op)),
 
-            OP::ANC_imm_0x0b => todo!("{:#04X}", op),
-            OP::ANC_imm_0x2b => todo!("{:#04X}", op),
+            OP::ANC_imm_0x0b => return Err(format!("{:#04X}", op)),
+            OP::ANC_imm_0x2b => return Err(format!("{:#04X}", op)),
 
             OP::AND_X_ind
             | OP::AND_abs
@@ -887,13 +891,13 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
-            OP::ANE_imm => todo!("{:#04X}", op),
+            OP::ANE_imm => return Err(format!("{:#04X}", op)),
 
-            OP::ARR_imm => todo!("{:#04X}", op),
+            OP::ARR_imm => return Err(format!("{:#04X}", op)),
 
             OP::ASL_A | OP::ASL_abs | OP::ASL_abs_X | OP::ASL_zpg | OP::ASL_zpg_X => {
                 let callback = |x| x << 1;
@@ -908,7 +912,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -929,7 +933,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -944,7 +948,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 7;
-                    return;
+                    return Ok(());
                 }
 
                 self.program_counter += 1;
@@ -978,7 +982,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.set_flag_carry(false);
             }
@@ -988,7 +992,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.set_flag_decimal(false);
             }
@@ -998,7 +1002,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 set_interrupt = true;
                 interrupt_value = false;
@@ -1009,7 +1013,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.set_flag_overflow(false);
             }
@@ -1038,7 +1042,7 @@ impl CPU {
                     self.set_flag_zero(register == value);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1054,7 +1058,7 @@ impl CPU {
                     self.set_flag_zero(register == value);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1070,17 +1074,17 @@ impl CPU {
                     self.set_flag_zero(register == value);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
-            OP::DCP_X_ind => todo!("{:#04X}", op),
-            OP::DCP_abs => todo!("{:#04X}", op),
-            OP::DCP_abs_X => todo!("{:#04X}", op),
-            OP::DCP_abs_Y => todo!("{:#04X}", op),
-            OP::DCP_ind_Y => todo!("{:#04X}", op),
-            OP::DCP_zpg => todo!("{:#04X}", op),
-            OP::DCP_zpg_X => todo!("{:#04X}", op),
+            OP::DCP_X_ind => return Err(format!("{:#04X}", op)),
+            OP::DCP_abs => return Err(format!("{:#04X}", op)),
+            OP::DCP_abs_X => return Err(format!("{:#04X}", op)),
+            OP::DCP_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::DCP_ind_Y => return Err(format!("{:#04X}", op)),
+            OP::DCP_zpg => return Err(format!("{:#04X}", op)),
+            OP::DCP_zpg_X => return Err(format!("{:#04X}", op)),
 
             OP::DEC_abs | OP::DEC_abs_X | OP::DEC_zpg | OP::DEC_zpg_X => {
                 let callback = |x: u8| x.wrapping_sub(1);
@@ -1093,7 +1097,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1102,7 +1106,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.index_x -= 1;
                 self.set_flag_zero(self.index_x == 0);
@@ -1114,7 +1118,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.index_y -= 1;
                 self.set_flag_zero(self.index_y == 0);
@@ -1145,7 +1149,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1160,7 +1164,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1169,7 +1173,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.index_x = self.index_x.wrapping_add(1);
                 self.set_flag_zero(self.index_x == 0);
@@ -1181,40 +1185,40 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.index_y = self.index_y.wrapping_add(1);
                 self.set_flag_zero(self.index_y == 0);
                 self.set_flag_zero(self.index_y & 0b1000_0000 != 0);
             }
 
-            OP::ISC_X_ind => todo!("{:#04X}", op),
-            OP::ISC_abs => todo!("{:#04X}", op),
-            OP::ISC_abs_X => todo!("{:#04X}", op),
-            OP::ISC_abs_Y => todo!("{:#04X}", op),
-            OP::ISC_ind_Y => todo!("{:#04X}", op),
-            OP::ISC_zpg => todo!("{:#04X}", op),
-            OP::ISC_zpg_X => todo!("{:#04X}", op),
+            OP::ISC_X_ind => return Err(format!("{:#04X}", op)),
+            OP::ISC_abs => return Err(format!("{:#04X}", op)),
+            OP::ISC_abs_X => return Err(format!("{:#04X}", op)),
+            OP::ISC_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::ISC_ind_Y => return Err(format!("{:#04X}", op)),
+            OP::ISC_zpg => return Err(format!("{:#04X}", op)),
+            OP::ISC_zpg_X => return Err(format!("{:#04X}", op)),
 
-            OP::JAM_0x12 => todo!("{:#04X}", op),
-            OP::JAM_0x2 => todo!("{:#04X}", op),
-            OP::JAM_0x22 => todo!("{:#04X}", op),
-            OP::JAM_0x32 => todo!("{:#04X}", op),
-            OP::JAM_0x42 => todo!("{:#04X}", op),
-            OP::JAM_0x52 => todo!("{:#04X}", op),
-            OP::JAM_0x62 => todo!("{:#04X}", op),
-            OP::JAM_0x72 => todo!("{:#04X}", op),
-            OP::JAM_0x92 => todo!("{:#04X}", op),
-            OP::JAM_0xb2 => todo!("{:#04X}", op),
-            OP::JAM_0xd2 => todo!("{:#04X}", op),
-            OP::JAM_0xf2 => todo!("{:#04X}", op),
+            OP::JAM_0x12 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x2 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x22 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x32 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x42 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x52 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x62 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x72 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0x92 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0xb2 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0xd2 => return Err(format!("{:#04X}", op)),
+            OP::JAM_0xf2 => return Err(format!("{:#04X}", op)),
 
             OP::JMP_abs => {
                 if self.cycle == emulator_cycle {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Abs);
                     self.cycle += 3;
-                    return;
+                    return Ok(());
                 }
 
                 self.program_counter = u16::from_le_bytes([
@@ -1227,7 +1231,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Ind);
                     self.cycle += 5;
-                    return;
+                    return Ok(());
                 }
 
                 let lo = memory.get(self.program_counter);
@@ -1244,7 +1248,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Abs);
                     self.cycle += 6;
-                    return;
+                    return Ok(());
                 }
 
                 let lo = memory.get(self.program_counter);
@@ -1266,14 +1270,14 @@ impl CPU {
                 self.program_counter = address;
             }
 
-            OP::LAS_abs_Y => todo!("{:#04X}", op),
+            OP::LAS_abs_Y => return Err(format!("{:#04X}", op)),
 
-            OP::LAX_X_ind => todo!("{:#04X}", op),
-            OP::LAX_abs => todo!("{:#04X}", op),
-            OP::LAX_abs_Y => todo!("{:#04X}", op),
-            OP::LAX_ind_Y => todo!("{:#04X}", op),
-            OP::LAX_zpg => todo!("{:#04X}", op),
-            OP::LAX_zpg_Y => todo!("{:#04X}", op),
+            OP::LAX_X_ind => return Err(format!("{:#04X}", op)),
+            OP::LAX_abs => return Err(format!("{:#04X}", op)),
+            OP::LAX_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::LAX_ind_Y => return Err(format!("{:#04X}", op)),
+            OP::LAX_zpg => return Err(format!("{:#04X}", op)),
+            OP::LAX_zpg_Y => return Err(format!("{:#04X}", op)),
 
             OP::LDA_X_ind
             | OP::LDA_abs
@@ -1299,7 +1303,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1317,7 +1321,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1335,7 +1339,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1352,47 +1356,47 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(false);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
-            OP::LXA_imm => todo!("{:#04X}", op),
+            OP::LXA_imm => return Err(format!("{:#04X}", op)),
 
-            OP::NOP_abs_0xc => todo!("{:#04X}", op),
-            OP::NOP_abs_X_0x1c => todo!("{:#04X}", op),
-            OP::NOP_abs_X_0x3c => todo!("{:#04X}", op),
-            OP::NOP_abs_X_0x5c => todo!("{:#04X}", op),
-            OP::NOP_abs_X_0x7c => todo!("{:#04X}", op),
-            OP::NOP_abs_X_0xdc => todo!("{:#04X}", op),
-            OP::NOP_abs_X_0xfc => todo!("{:#04X}", op),
-            OP::NOP_imm_0x80 => todo!("{:#04X}", op),
-            OP::NOP_imm_0x82 => todo!("{:#04X}", op),
-            OP::NOP_imm_0x89 => todo!("{:#04X}", op),
-            OP::NOP_imm_0xc2 => todo!("{:#04X}", op),
-            OP::NOP_imm_0xe2 => todo!("{:#04X}", op),
-            OP::NOP_impl_0x1a => todo!("{:#04X}", op),
-            OP::NOP_impl_0x3a => todo!("{:#04X}", op),
-            OP::NOP_impl_0x5a => todo!("{:#04X}", op),
-            OP::NOP_impl_0x7a => todo!("{:#04X}", op),
-            OP::NOP_impl_0xda => todo!("{:#04X}", op),
+            OP::NOP_abs_0xc => return Err(format!("{:#04X}", op)),
+            OP::NOP_abs_X_0x1c => return Err(format!("{:#04X}", op)),
+            OP::NOP_abs_X_0x3c => return Err(format!("{:#04X}", op)),
+            OP::NOP_abs_X_0x5c => return Err(format!("{:#04X}", op)),
+            OP::NOP_abs_X_0x7c => return Err(format!("{:#04X}", op)),
+            OP::NOP_abs_X_0xdc => return Err(format!("{:#04X}", op)),
+            OP::NOP_abs_X_0xfc => return Err(format!("{:#04X}", op)),
+            OP::NOP_imm_0x80 => return Err(format!("{:#04X}", op)),
+            OP::NOP_imm_0x82 => return Err(format!("{:#04X}", op)),
+            OP::NOP_imm_0x89 => return Err(format!("{:#04X}", op)),
+            OP::NOP_imm_0xc2 => return Err(format!("{:#04X}", op)),
+            OP::NOP_imm_0xe2 => return Err(format!("{:#04X}", op)),
+            OP::NOP_impl_0x1a => return Err(format!("{:#04X}", op)),
+            OP::NOP_impl_0x3a => return Err(format!("{:#04X}", op)),
+            OP::NOP_impl_0x5a => return Err(format!("{:#04X}", op)),
+            OP::NOP_impl_0x7a => return Err(format!("{:#04X}", op)),
+            OP::NOP_impl_0xda => return Err(format!("{:#04X}", op)),
             OP::NOP_impl_0xea => {
                 if self.cycle == emulator_cycle {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
             }
-            OP::NOP_impl_0xfa => todo!("{:#04X}", op),
-            OP::NOP_zpg_0x4 => todo!("{:#04X}", op),
-            OP::NOP_zpg_0x44 => todo!("{:#04X}", op),
-            OP::NOP_zpg_0x64 => todo!("{:#04X}", op),
-            OP::NOP_zpg_X_0x14 => todo!("{:#04X}", op),
-            OP::NOP_zpg_X_0x34 => todo!("{:#04X}", op),
-            OP::NOP_zpg_X_0x54 => todo!("{:#04X}", op),
-            OP::NOP_zpg_X_0x74 => todo!("{:#04X}", op),
-            OP::NOP_zpg_X_0xd4 => todo!("{:#04X}", op),
-            OP::NOP_zpg_X_0xf4 => todo!("{:#04X}", op),
+            OP::NOP_impl_0xfa => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_0x4 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_0x44 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_0x64 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_X_0x14 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_X_0x34 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_X_0x54 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_X_0x74 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_X_0xd4 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_X_0xf4 => return Err(format!("{:#04X}", op)),
 
             OP::ORA_X_ind
             | OP::ORA_abs
@@ -1418,7 +1422,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1427,7 +1431,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 3;
-                    return;
+                    return Ok(());
                 }
                 memory.set(0x100 + self.stack_pointer as u16, self.accumulator);
                 self.stack_pointer -= 1;
@@ -1438,7 +1442,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 3;
-                    return;
+                    return Ok(());
                 }
                 memory.set(
                     0x100 + self.stack_pointer as u16,
@@ -1452,7 +1456,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 4;
-                    return;
+                    return Ok(());
                 }
                 self.stack_pointer += 1;
                 self.accumulator = memory.get(0x100 + self.stack_pointer as u16);
@@ -1465,7 +1469,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 4;
-                    return;
+                    return Ok(());
                 }
                 self.stack_pointer += 1;
                 self.status_register = self.status_register & 0b0000_0100
@@ -1475,13 +1479,13 @@ impl CPU {
                 interrupt_value = memory.get(0x100 + self.stack_pointer as u16) & 0b0000_0100 != 0;
             }
 
-            OP::RLA_X_ind => todo!("{:#04X}", op),
-            OP::RLA_abs => todo!("{:#04X}", op),
-            OP::RLA_abs_X => todo!("{:#04X}", op),
-            OP::RLA_abs_Y => todo!("{:#04X}", op),
-            OP::RLA_ind_Y => todo!("{:#04X}", op),
-            OP::RLA_zpg => todo!("{:#04X}", op),
-            OP::RLA_zpg_X => todo!("{:#04X}", op),
+            OP::RLA_X_ind => return Err(format!("{:#04X}", op)),
+            OP::RLA_abs => return Err(format!("{:#04X}", op)),
+            OP::RLA_abs_X => return Err(format!("{:#04X}", op)),
+            OP::RLA_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::RLA_ind_Y => return Err(format!("{:#04X}", op)),
+            OP::RLA_zpg => return Err(format!("{:#04X}", op)),
+            OP::RLA_zpg_X => return Err(format!("{:#04X}", op)),
 
             OP::ROL_A | OP::ROL_abs | OP::ROL_abs_X | OP::ROL_zpg | OP::ROL_zpg_X => {
                 let carry = self.get_flag_carry();
@@ -1497,7 +1501,7 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
@@ -1515,24 +1519,24 @@ impl CPU {
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
-            OP::RRA_X_ind => todo!("{:#04X}", op),
-            OP::RRA_abs => todo!("{:#04X}", op),
-            OP::RRA_abs_X => todo!("{:#04X}", op),
-            OP::RRA_abs_Y => todo!("{:#04X}", op),
-            OP::RRA_ind_Y => todo!("{:#04X}", op),
-            OP::RRA_zpg => todo!("{:#04X}", op),
-            OP::RRA_zpg_X => todo!("{:#04X}", op),
+            OP::RRA_X_ind => return Err(format!("{:#04X}", op)),
+            OP::RRA_abs => return Err(format!("{:#04X}", op)),
+            OP::RRA_abs_X => return Err(format!("{:#04X}", op)),
+            OP::RRA_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::RRA_ind_Y => return Err(format!("{:#04X}", op)),
+            OP::RRA_zpg => return Err(format!("{:#04X}", op)),
+            OP::RRA_zpg_X => return Err(format!("{:#04X}", op)),
 
             OP::RTI_impl => {
                 if self.cycle == emulator_cycle {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 6;
-                    return;
+                    return Ok(());
                 }
                 self.stack_pointer += 1;
                 self.status_register = memory.get(0x100 + self.stack_pointer as u16) & 0b1110_1111;
@@ -1548,7 +1552,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 6;
-                    return;
+                    return Ok(());
                 }
                 self.stack_pointer += 1;
                 let lo = memory.get(0x100 + self.stack_pointer as u16);
@@ -1557,10 +1561,10 @@ impl CPU {
                 self.program_counter = u16::from_le_bytes([lo, hi]) + 1;
             }
 
-            OP::SAX_X_ind => todo!("{:#04X}", op),
-            OP::SAX_abs => todo!("{:#04X}", op),
-            OP::SAX_zpg => todo!("{:#04X}", op),
-            OP::SAX_zpg_Y => todo!("{:#04X}", op),
+            OP::SAX_X_ind => return Err(format!("{:#04X}", op)),
+            OP::SAX_abs => return Err(format!("{:#04X}", op)),
+            OP::SAX_zpg => return Err(format!("{:#04X}", op)),
+            OP::SAX_zpg_Y => return Err(format!("{:#04X}", op)),
 
             OP::SBC_X_ind
             | OP::SBC_abs
@@ -1591,18 +1595,18 @@ impl CPU {
                     self.set_flag_negative(result & 0b1000_0000 != 0);
                     self.accumulator = result;
                 } else {
-                    return;
+                    return Ok(());
                 }
             }
 
-            OP::SBX_imm => todo!("{:#04X}", op),
+            OP::SBX_imm => return Err(format!("{:#04X}", op)),
 
             OP::SEC_impl => {
                 if self.cycle == emulator_cycle {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.set_flag_carry(true);
             }
@@ -1612,7 +1616,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.set_flag_decimal(true);
             }
@@ -1622,34 +1626,34 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 set_interrupt = true;
                 interrupt_value = true;
             }
 
-            OP::SHA_abs_Y => todo!("{:#04X}", op),
-            OP::SHA_ind_Y => todo!("{:#04X}", op),
+            OP::SHA_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::SHA_ind_Y => return Err(format!("{:#04X}", op)),
 
-            OP::SHX_abs_Y => todo!("{:#04X}", op),
+            OP::SHX_abs_Y => return Err(format!("{:#04X}", op)),
 
-            OP::SHY_abs_X => todo!("{:#04X}", op),
+            OP::SHY_abs_X => return Err(format!("{:#04X}", op)),
 
-            OP::SLO_X_ind => todo!("{:#04X}", op),
-            OP::SLO_abs => todo!("{:#04X}", op),
-            OP::SLO_abs_X => todo!("{:#04X}", op),
-            OP::SLO_abs_Y => todo!("{:#04X}", op),
-            OP::SLO_ind_Y => todo!("{:#04X}", op),
-            OP::SLO_zpg => todo!("{:#04X}", op),
-            OP::SLO_zpg_X => todo!("{:#04X}", op),
+            OP::SLO_X_ind => return Err(format!("{:#04X}", op)),
+            OP::SLO_abs => return Err(format!("{:#04X}", op)),
+            OP::SLO_abs_X => return Err(format!("{:#04X}", op)),
+            OP::SLO_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::SLO_ind_Y => return Err(format!("{:#04X}", op)),
+            OP::SLO_zpg => return Err(format!("{:#04X}", op)),
+            OP::SLO_zpg_X => return Err(format!("{:#04X}", op)),
 
-            OP::SRE_X_ind => todo!("{:#04X}", op),
-            OP::SRE_abs => todo!("{:#04X}", op),
-            OP::SRE_abs_X => todo!("{:#04X}", op),
-            OP::SRE_abs_Y => todo!("{:#04X}", op),
-            OP::SRE_ind_Y => todo!("{:#04X}", op),
-            OP::SRE_zpg => todo!("{:#04X}", op),
-            OP::SRE_zpg_X => todo!("{:#04X}", op),
+            OP::SRE_X_ind => return Err(format!("{:#04X}", op)),
+            OP::SRE_abs => return Err(format!("{:#04X}", op)),
+            OP::SRE_abs_X => return Err(format!("{:#04X}", op)),
+            OP::SRE_abs_Y => return Err(format!("{:#04X}", op)),
+            OP::SRE_ind_Y => return Err(format!("{:#04X}", op)),
+            OP::SRE_zpg => return Err(format!("{:#04X}", op)),
+            OP::SRE_zpg_X => return Err(format!("{:#04X}", op)),
 
             OP::STA_X_ind => self.xind_w(memory, emulator_cycle, self.accumulator),
             OP::STA_abs => self.abs_w(memory, emulator_cycle, self.accumulator),
@@ -1667,14 +1671,14 @@ impl CPU {
             OP::STY_zpg => self.zpg_w(memory, emulator_cycle, self.index_y),
             OP::STY_zpg_X => self.zpgx_w(memory, emulator_cycle, self.index_y),
 
-            OP::TAS_abs_Y => todo!("{:#04X}", op),
+            OP::TAS_abs_Y => return Err(format!("{:#04X}", op)),
 
             OP::TAX_impl => {
                 if self.cycle == emulator_cycle {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.index_x = self.accumulator;
                 self.set_flag_zero(self.index_x == 0);
@@ -1686,7 +1690,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.index_y = self.accumulator;
                 self.set_flag_zero(self.index_y == 0);
@@ -1698,7 +1702,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.index_x = self.stack_pointer;
                 self.set_flag_zero(self.index_x == 0);
@@ -1710,7 +1714,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.accumulator = self.index_x;
                 self.set_flag_zero(self.accumulator == 0);
@@ -1722,7 +1726,7 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.stack_pointer = self.index_x;
                 self.set_flag_zero(self.stack_pointer == 0);
@@ -1734,14 +1738,14 @@ impl CPU {
                     self.program_counter -= 1;
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
-                    return;
+                    return Ok(());
                 }
                 self.accumulator = self.index_y;
                 self.set_flag_zero(self.accumulator == 0);
                 self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
             }
 
-            OP::USBC_imm => todo!("{:#04X}", op),
+            OP::USBC_imm => return Err(format!("{:#04X}", op)),
         }
 
         if self.nmi | self.irq {
@@ -1775,63 +1779,7 @@ impl CPU {
         if set_interrupt {
             self.set_flag_interrupt_disable(interrupt_value);
         }
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use crate::rom_reader;
-
-    use super::*;
-
-    #[test]
-    fn opcodes_inc() {
-        let file = rom_reader::compile_and_read_file("./assets/tests/inc.nes");
-        let mut memory = Memory {
-            ram: vec![0; 0x800],
-            ppu_registers: [0; 8],
-            apu_io: [0; 32],
-            prg_rom: file.prg_rom,
-            chr_rom: file.chr_rom,
-        };
-
-        let mut cpu = CPU::new(&memory, "log_inc.txt");
-
-        assert!(memory.get(0x02) == 0 as u8);
-
-        for cycle in 7..(7 + 10) {
-            cpu.cycle(&mut memory, cycle);
-        }
-
-        assert!(memory.get(0x02) == 2 as u8);
-    }
-
-    #[test]
-    fn opcodes_lda() {
-        let file = rom_reader::compile_and_read_file("./assets/tests/LDA.nes");
-        let mut memory = Memory {
-            ram: vec![0; 0x800],
-            ppu_registers: [0; 8],
-            apu_io: [0; 32],
-            prg_rom: file.prg_rom,
-            chr_rom: file.chr_rom,
-        };
-
-        let mut cpu = CPU::new(&memory, "log_lda.txt");
-
-        assert!(cpu.accumulator == 0);
-        cpu.cycle(&mut memory, 7);
-        cpu.cycle(&mut memory, 8);
-        assert!(cpu.accumulator == 1);
-        cpu.cycle(&mut memory, 9);
-        cpu.cycle(&mut memory, 10);
-        cpu.cycle(&mut memory, 11);
-        cpu.cycle(&mut memory, 12);
-        assert!(cpu.accumulator == 2);
-        cpu.cycle(&mut memory, 13);
-        cpu.cycle(&mut memory, 14);
-        cpu.cycle(&mut memory, 15);
-        cpu.cycle(&mut memory, 16);
-        assert!(cpu.accumulator == 3);
+        return Ok(());
     }
 }

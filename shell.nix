@@ -66,5 +66,6 @@ pkgs.mkShell
     alias crr='cargo run --release'
     alias cbd='cargo build'
     alias cbr='cargo build --release'
+    alias ct='cargo test'
   '';
 }
