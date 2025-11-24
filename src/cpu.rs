@@ -929,9 +929,9 @@ impl CPU {
                     OP::BIT_abs => self.abs_r(memory, emulator_cycle, register, callback),
                     OP::BIT_zpg | _ => self.zpg_r(memory, emulator_cycle, register, callback),
                 } {
-                    self.set_flag_overflow(value & 0b0100_0000 != 0);
                     self.set_flag_zero(result == 0);
-                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                    self.set_flag_overflow(value & 0b0100_0000 != 0);
+                    self.set_flag_negative(value & 0b1000_0000 != 0);
                 } else {
                     return Ok(());
                 }
