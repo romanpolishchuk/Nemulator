@@ -97,22 +97,22 @@ fn cpu_full() {
         reference_log_line = reference_log_line.trim().to_string();
 
         assert!(
-            cpu_log_line[0..11] == reference_log_line[0..11],
+            cpu_log_line[0..14] == reference_log_line[0..14],
             "\nLine: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {}",
                 "\x1b[31m",
-                &cpu_log_line[0..11],
+                &cpu_log_line[..14],
                 "\x1b[0m",
-                &cpu_log_line[11..]
+                &cpu_log_line[14..]
             ),
             format!(
                 "{} {} {} {}",
                 "\x1b[32m",
-                &reference_log_line[0..11],
+                &reference_log_line[0..14],
                 "\x1b[0m",
-                &reference_log_line[11..]
+                &reference_log_line[14..]
             ),
         );
 
@@ -227,21 +227,21 @@ fn cpu_full() {
         );
 
         assert!(
-            cpu_log_line[85..] == reference_log_line[85..],
+            cpu_log_line[90..] == reference_log_line[90..],
             "Line: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {}",
-                &cpu_log_line[..85],
+                &cpu_log_line[..90],
                 "\x1b[31m",
-                &cpu_log_line[85..],
+                &cpu_log_line[90..],
                 "\x1b[0m",
             ),
             format!(
                 "{} {} {} {}",
-                &reference_log_line[..85],
+                &reference_log_line[..90],
                 "\x1b[32m",
-                &reference_log_line[85..],
+                &reference_log_line[90..],
                 "\x1b[0m",
             ),
         );
