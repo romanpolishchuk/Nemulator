@@ -161,12 +161,18 @@ impl CPU {
                     bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
                 ),
                 OPMode::AbsX => format!(
-                    "{:02X} {:02X} {:02X}  {} ${:02X}{:02X}, X",
+                    "{:02X} {:02X} {:02X}  {} ${:02X}{:02X},X",
                     bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
                 ),
                 OPMode::AbsY => format!(
-                    "{:02X} {:02X} {:02X}  {} ${:02X}{:02X}, Y",
-                    bytes[0], bytes[1], bytes[2], name, bytes[2], bytes[1]
+                    "{:02X} {:02X} {:02X}  {} ${:02X}{:02X},Y @ {:04X}",
+                    bytes[0],
+                    bytes[1],
+                    bytes[2],
+                    name,
+                    bytes[2],
+                    bytes[1],
+                    u16::from_le_bytes([bytes[1], bytes[2]]).wrapping_add(self.index_y as u16),
                 ),
                 OPMode::Imm => format!(
                     "{:02X} {:02X}     {} #${:02X}",
@@ -334,9 +340,9 @@ impl CPU {
         let mut address = memory.get(self.program_counter);
         self.program_counter += 1;
 
-        address += self.index_x;
+        address = address.wrapping_add(self.index_x);
 
-        let value = memory.get(address.into());
+        let value = memory.get(address as u16);
         let result = callback(value);
 
         memory.set(address.into(), result);
@@ -445,7 +451,6 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
             self.log_instr(memory, OPMode::AbsY);
 
             let (_, is_overflow) = memory
@@ -456,6 +461,7 @@ impl CPU {
             } else {
                 self.cycle += 4;
             }
+            self.program_counter -= 1;
 
             return None;
         }
@@ -466,7 +472,7 @@ impl CPU {
         self.program_counter += 1;
 
         let mut address = u16::from_le_bytes([address_lb, address_hb]);
-        address += self.index_y as u16;
+        address = address.wrapping_add(self.index_y as u16);
 
         let value = memory.get(address);
         let result = callback(register, memory.get(address));
@@ -486,7 +492,7 @@ impl CPU {
     {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
-            self.log_instr(memory, OPMode::Ind);
+            self.log_instr(memory, OPMode::XInd);
             self.cycle += 6;
             return None;
         }
@@ -494,10 +500,12 @@ impl CPU {
         let mut lookup = memory.get(self.program_counter);
         self.program_counter += 1;
 
-        lookup += self.index_x;
+        lookup = lookup.wrapping_add(self.index_x);
 
-        let address =
-            u16::from_le_bytes([memory.get(lookup as u16), memory.get(lookup as u16 + 1)]);
+        let address = u16::from_le_bytes([
+            memory.get(lookup as u16),
+            memory.get(lookup.wrapping_add(1) as u16),
+        ]);
 
         let value = memory.get(address);
         let result = callback(register, memory.get(address));
@@ -543,7 +551,7 @@ impl CPU {
     {
         let lookup = memory.get(self.program_counter);
         let mut lo = memory.get(lookup as u16);
-        let mut hi = memory.get(lookup as u16 + 1);
+        let mut hi = memory.get(lookup.wrapping_add(1) as u16);
         let overflow: bool;
         (lo, overflow) = lo.overflowing_add(self.index_y);
         if overflow {
@@ -663,11 +671,13 @@ impl CPU {
             return;
         }
 
-        let lookup = memory.get(self.program_counter) + self.index_x;
+        let lookup = memory.get(self.program_counter).wrapping_add(self.index_x);
         self.program_counter += 1;
 
-        let address =
-            u16::from_le_bytes([memory.get(lookup as u16), memory.get(lookup as u16 + 1)]);
+        let address = u16::from_le_bytes([
+            memory.get(lookup as u16),
+            memory.get(lookup.wrapping_add(1) as u16),
+        ]);
 
         memory.set(address, register);
     }
@@ -721,29 +731,21 @@ impl CPU {
     }
 
     fn indy_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
-        let lookup = memory.get(self.program_counter);
-        let mut lo = memory.get(lookup as u16);
-        let mut hi = memory.get(lookup as u16 + 1);
-        let overflow: bool;
-        (lo, overflow) = lo.overflowing_add(self.index_y);
-        if overflow {
-            hi += 1;
-        }
-
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
             self.log_instr(memory, OPMode::IndY);
-            self.cycle += 5;
-            if overflow {
-                self.cycle += 1;
-            }
+            self.cycle += 6;
 
             return;
         }
 
+        let lookup = memory.get(self.program_counter);
+        let lo = memory.get(lookup as u16);
+        let hi = memory.get(lookup.wrapping_add(1) as u16);
+
         self.program_counter += 1;
 
-        let address = u16::from_le_bytes([lo, hi]);
+        let address = u16::from_le_bytes([lo, hi]) + self.index_y as u16;
 
         memory.set(address, register);
     }
@@ -792,8 +794,8 @@ impl CPU {
 
     fn branch(&mut self, memory: &mut Memory, emulator_cycle: u64, condition: bool) {
         let offset = memory.get(self.program_counter);
-        let (_, overflow) = (self.program_counter as u8).overflowing_add(offset);
         if self.cycle == emulator_cycle {
+            let (_, overflow) = ((self.program_counter + 1) as u8).overflowing_add(offset);
             self.program_counter -= 1;
             self.log_instr(memory, OPMode::Rel);
             if !condition {
@@ -1108,9 +1110,9 @@ impl CPU {
                     self.cycle += 2;
                     return Ok(());
                 }
-                self.index_x -= 1;
+                self.index_x = self.index_x.wrapping_sub(1);
                 self.set_flag_zero(self.index_x == 0);
-                self.set_flag_zero(self.index_x & 0b1000_0000 != 0);
+                self.set_flag_negative(self.index_x & 0b1000_0000 != 0);
             }
 
             OP::DEY_impl => {
@@ -1120,9 +1122,9 @@ impl CPU {
                     self.cycle += 2;
                     return Ok(());
                 }
-                self.index_y -= 1;
+                self.index_y = self.index_y.wrapping_sub(1);
                 self.set_flag_zero(self.index_y == 0);
-                self.set_flag_zero(self.index_y & 0b1000_0000 != 0);
+                self.set_flag_negative(self.index_y & 0b1000_0000 != 0);
             }
 
             OP::EOR_X_ind
@@ -1177,7 +1179,7 @@ impl CPU {
                 }
                 self.index_x = self.index_x.wrapping_add(1);
                 self.set_flag_zero(self.index_x == 0);
-                self.set_flag_zero(self.index_x & 0b1000_0000 != 0);
+                self.set_flag_negative(self.index_x & 0b1000_0000 != 0);
             }
 
             OP::INY_impl => {
@@ -1189,7 +1191,7 @@ impl CPU {
                 }
                 self.index_y = self.index_y.wrapping_add(1);
                 self.set_flag_zero(self.index_y == 0);
-                self.set_flag_zero(self.index_y & 0b1000_0000 != 0);
+                self.set_flag_negative(self.index_y & 0b1000_0000 != 0);
             }
 
             OP::ISC_X_ind => return Err(format!("{:#04X}", op)),
@@ -1237,8 +1239,8 @@ impl CPU {
                 let lo = memory.get(self.program_counter);
                 let hi = memory.get(self.program_counter + 1);
 
-                let jump_lo = memory.get(u16::from_be_bytes([lo, hi]));
-                let jump_hi = memory.get(u16::from_be_bytes([lo.wrapping_add(1), hi]));
+                let jump_lo = memory.get(u16::from_le_bytes([lo, hi]));
+                let jump_hi = memory.get(u16::from_le_bytes([lo.wrapping_add(1), hi]));
 
                 self.program_counter = u16::from_le_bytes([jump_lo, jump_hi]);
             }
@@ -1540,6 +1542,7 @@ impl CPU {
                 }
                 self.stack_pointer += 1;
                 self.status_register = memory.get(0x100 + self.stack_pointer as u16) & 0b1110_1111;
+                self.status_register |= 0b0010_0000;
                 self.stack_pointer += 1;
                 let lo = memory.get(0x100 + self.stack_pointer as u16);
                 self.stack_pointer += 1;
@@ -1587,7 +1590,7 @@ impl CPU {
                     OP::SBC_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
                     OP::SBC_zpg_X | _ => self.zpgx_r(memory, emulator_cycle, register, callback),
                 } {
-                    self.set_flag_carry(result > register);
+                    self.set_flag_carry(result <= register);
                     self.set_flag_zero(result == 0);
                     self.set_flag_overflow(
                         (result ^ register) & (result ^ !value) & 0b1000_0000 != 0,
@@ -1729,8 +1732,6 @@ impl CPU {
                     return Ok(());
                 }
                 self.stack_pointer = self.index_x;
-                self.set_flag_zero(self.stack_pointer == 0);
-                self.set_flag_negative(self.stack_pointer & 0b1000_0000 != 0);
             }
 
             OP::TYA_impl => {

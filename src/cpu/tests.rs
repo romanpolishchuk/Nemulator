@@ -72,7 +72,8 @@ fn cpu_full() {
     cpu.program_counter = 0xC000;
     let mut emulator_cycle = 7;
     loop {
-        if let Err(_) = cpu.cycle(&mut memory, emulator_cycle) {
+        if let Err(e) = cpu.cycle(&mut memory, emulator_cycle) {
+            println!("CPU crashed with: {e}");
             break;
         }
         emulator_cycle += 1;
@@ -96,6 +97,7 @@ fn cpu_full() {
         cpu_log_line = cpu_log_line.trim().to_string();
         reference_log_line = reference_log_line.trim().to_string();
 
+        // Program counter, bytes and mnemonic
         assert!(
             cpu_log_line[0..14] == reference_log_line[0..14],
             "\nLine: {}\n{}\n{}",
@@ -116,6 +118,7 @@ fn cpu_full() {
             ),
         );
 
+        // Accumulator
         assert!(
             cpu_log_line[50..52] == reference_log_line[50..52],
             "\nLine: {}\n{}\n{}",
@@ -138,6 +141,7 @@ fn cpu_full() {
             ),
         );
 
+        // X
         assert!(
             cpu_log_line[55..57] == reference_log_line[55..57],
             "\nLine: {}\n{}\n{}",
@@ -160,6 +164,7 @@ fn cpu_full() {
             ),
         );
 
+        // Y
         assert!(
             cpu_log_line[60..62] == reference_log_line[60..62],
             "\nLine: {}\n{}\n{}",
@@ -182,9 +187,10 @@ fn cpu_full() {
             ),
         );
 
+        // Flags
         assert!(
             cpu_log_line[65..67] == reference_log_line[65..67],
-            "Line: {}\n{}\n{}",
+            "Line: {}\n{}\n{}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {} {}",
@@ -195,6 +201,10 @@ fn cpu_full() {
                 &cpu_log_line[67..]
             ),
             format!(
+                "NV1BDIZC\n{:08b}",
+                u8::from_str_radix(&cpu_log_line[65..67], 16).unwrap()
+            ),
+            format!(
                 "{} {} {} {} {}",
                 &reference_log_line[0..65],
                 "\x1b[32m",
@@ -202,8 +212,13 @@ fn cpu_full() {
                 "\x1b[0m",
                 &reference_log_line[67..]
             ),
+            format!(
+                "NV1BDIZC\n{:08b}",
+                u8::from_str_radix(&reference_log_line[65..67], 16).unwrap()
+            ),
         );
 
+        // Stack Pointer
         assert!(
             cpu_log_line[71..73] == reference_log_line[71..73],
             "Line: {}\n{}\n{}",
@@ -226,6 +241,7 @@ fn cpu_full() {
             ),
         );
 
+        // Cycles
         assert!(
             cpu_log_line[90..] == reference_log_line[90..],
             "Line: {}\n{}\n{}",
