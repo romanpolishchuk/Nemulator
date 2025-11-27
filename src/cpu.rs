@@ -415,7 +415,7 @@ impl CPU {
             self.log_instr(memory, OPMode::AbsX);
 
             let (_, is_overflow) = memory
-                .get(self.program_counter)
+                .get(self.program_counter + 1)
                 .overflowing_add(self.index_x);
             if is_overflow {
                 self.cycle += 5;
@@ -451,17 +451,17 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
+            self.program_counter -= 1;
             self.log_instr(memory, OPMode::AbsY);
 
             let (_, is_overflow) = memory
-                .get(self.program_counter)
+                .get(self.program_counter + 1)
                 .overflowing_add(self.index_y);
             if is_overflow {
                 self.cycle += 5;
             } else {
                 self.cycle += 4;
             }
-            self.program_counter -= 1;
 
             return None;
         }
@@ -768,7 +768,7 @@ impl CPU {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
             self.log_instr(memory, OPMode::ZpgX);
-            self.cycle += 3;
+            self.cycle += 4;
             return;
         }
 
@@ -782,7 +782,7 @@ impl CPU {
         if self.cycle == emulator_cycle {
             self.program_counter -= 1;
             self.log_instr(memory, OPMode::ZpgY);
-            self.cycle += 3;
+            self.cycle += 4;
             return;
         }
 

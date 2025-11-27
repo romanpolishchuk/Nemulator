@@ -72,6 +72,9 @@ fn cpu_full() {
     cpu.program_counter = 0xC000;
     let mut emulator_cycle = 7;
     loop {
+        if emulator_cycle == 9670 {
+            print!("");
+        }
         if let Err(e) = cpu.cycle(&mut memory, emulator_cycle) {
             println!("CPU crashed with: {e}");
             break;
