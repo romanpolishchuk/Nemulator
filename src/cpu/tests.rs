@@ -1,8 +1,9 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader},
 };
 
+use crate::memory::PPURegisters;
 use crate::{Memory, cpu::CPU, rom_reader};
 
 // #[test]
@@ -59,15 +60,15 @@ use crate::{Memory, cpu::CPU, rom_reader};
 #[test]
 fn cpu_full() {
     let file = rom_reader::read_file("./assets/tests/nestest.nes");
-    let mut memory = Memory {
-        ram: vec![0; 0x800],
-        ppu_registers: [0; 8],
-        apu_io: [0; 32],
-        prg_rom: file.prg_rom,
-        chr_rom: file.chr_rom,
-    };
+    let mut memory = Memory::new(
+        vec![0; 0x800],
+        PPURegisters::new(),
+        [0; 32],
+        file.prg_rom,
+        file.chr_rom,
+    );
 
-    let mut cpu = CPU::new(&memory, "test-cpu_full.log");
+    let mut cpu = CPU::new(&mut memory, Some("test-cpu_full.log"));
 
     cpu.program_counter = 0xC000;
     let mut emulator_cycle = 7;

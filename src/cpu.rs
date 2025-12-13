@@ -6,7 +6,6 @@ mod tests;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::result;
 
 use opcodes::OP;
 
@@ -36,20 +35,25 @@ pub struct CPU {
     stack_pointer: u8,
     status_register: u8,
     cycle: u64,
-    log_file: File,
+    log_file: Option<File>,
     irq: bool,
     nmi: bool,
 }
 
 impl CPU {
-    pub fn new(memory: &Memory, log_name: &str) -> CPU {
+    pub fn new(memory: &mut Memory, log_name_opt: Option<&str>) -> CPU {
+        let mut log_file: Option<File> = None;
         fs::create_dir_all("./logs/").unwrap();
-        let log_file = OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(Path::new("./logs/").join(log_name))
-            .unwrap();
+        if let Some(log_name) = log_name_opt {
+            log_file = Some(
+                OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .create(true)
+                    .open(Path::new("./logs/").join(log_name))
+                    .unwrap(),
+            );
+        }
 
         CPU {
             accumulator: 0,
@@ -142,7 +146,11 @@ impl CPU {
         }
     }
 
-    fn log_instr(&mut self, memory: &Memory, mode: OPMode) {
+    fn log_instr(&mut self, memory: &mut Memory, mode: OPMode) {
+        if self.log_file.is_none() {
+            return;
+        }
+
         let bytes = vec![
             memory.get(self.program_counter),
             memory.get(self.program_counter + 1),
@@ -226,7 +234,8 @@ impl CPU {
             self.stack_pointer,
             self.cycle
         );
-        writeln!(self.log_file, "{}", line).unwrap();
+
+        writeln!(self.log_file.as_ref().unwrap(), "{}", line).unwrap();
     }
 
     fn abs_rmw<F>(
