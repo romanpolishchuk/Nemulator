@@ -3,7 +3,7 @@ use std::{
     io::{BufRead, BufReader},
 };
 
-use crate::memory::PPURegisters;
+use crate::ppu::PPURegisters;
 use crate::{Memory, cpu::CPU, rom_reader};
 
 // #[test]

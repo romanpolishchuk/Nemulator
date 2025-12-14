@@ -153,8 +153,8 @@ impl CPU {
 
         let bytes = vec![
             memory.get(self.program_counter),
-            memory.get(self.program_counter + 1),
-            memory.get(self.program_counter + 2),
+            memory.get(self.program_counter.wrapping_add(1)),
+            memory.get(self.program_counter.wrapping_add(2)),
         ];
 
         let mut line = String::from("");
@@ -248,7 +248,7 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Abs);
             self.cycle += 6;
 
@@ -256,9 +256,9 @@ impl CPU {
         }
 
         let address_lb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address_hb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let address = u16::from_le_bytes([address_lb, address_hb]);
 
@@ -280,7 +280,7 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::AbsX);
             self.cycle += 7;
 
@@ -288,9 +288,9 @@ impl CPU {
         }
 
         let address_lb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address_hb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let mut address = u16::from_le_bytes([address_lb, address_hb]);
         address += self.index_x as u16;
@@ -313,14 +313,14 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Zpg);
             self.cycle += 5;
             return None;
         }
 
         let address = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let value = memory.get(address.into());
         let result = callback(value);
@@ -340,14 +340,14 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::ZpgX);
             self.cycle += 6;
             return None;
         }
 
         let mut address = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         address = address.wrapping_add(self.index_x);
 
@@ -364,7 +364,7 @@ impl CPU {
         F: Fn(u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::A);
             self.cycle += 2;
 
@@ -390,16 +390,16 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Abs);
             self.cycle += 4;
             return None;
         }
 
         let address_lb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address_hb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let address = u16::from_le_bytes([address_lb, address_hb]);
 
@@ -420,11 +420,11 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::AbsX);
 
             let (_, is_overflow) = memory
-                .get(self.program_counter + 1)
+                .get(self.program_counter.wrapping_add(1))
                 .overflowing_add(self.index_x);
             if is_overflow {
                 self.cycle += 5;
@@ -436,9 +436,9 @@ impl CPU {
         }
 
         let address_lb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address_hb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let mut address = u16::from_le_bytes([address_lb, address_hb]);
         address += self.index_x as u16;
@@ -460,11 +460,11 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::AbsY);
 
             let (_, is_overflow) = memory
-                .get(self.program_counter + 1)
+                .get(self.program_counter.wrapping_add(1))
                 .overflowing_add(self.index_y);
             if is_overflow {
                 self.cycle += 5;
@@ -476,9 +476,9 @@ impl CPU {
         }
 
         let address_lb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address_hb = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let mut address = u16::from_le_bytes([address_lb, address_hb]);
         address = address.wrapping_add(self.index_y as u16);
@@ -500,14 +500,14 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::XInd);
             self.cycle += 6;
             return None;
         }
 
         let mut lookup = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         lookup = lookup.wrapping_add(self.index_x);
 
@@ -533,14 +533,14 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Imm);
             self.cycle += 2;
             return None;
         }
 
         let imm = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let value = imm;
         let result = callback(register, imm);
@@ -568,7 +568,7 @@ impl CPU {
         }
 
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::IndY);
             self.cycle += 5;
             if overflow {
@@ -578,7 +578,7 @@ impl CPU {
             return None;
         }
 
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let address = u16::from_le_bytes([lo, hi]);
 
@@ -599,7 +599,7 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Zpg);
             self.cycle += 3;
 
@@ -608,7 +608,7 @@ impl CPU {
 
         let lookup = memory.get(self.program_counter);
         let address = lookup as u16;
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let value = memory.get(address);
         let result = callback(register, memory.get(address));
@@ -627,7 +627,7 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::ZpgX);
             self.cycle += 4;
 
@@ -635,7 +635,7 @@ impl CPU {
         }
 
         let lookup = memory.get(self.program_counter).wrapping_add(self.index_x);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address = lookup as u16;
 
         let value = memory.get(address);
@@ -655,7 +655,7 @@ impl CPU {
         F: Fn(u8, u8) -> u8,
     {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::ZpgY);
             self.cycle += 4;
 
@@ -663,7 +663,7 @@ impl CPU {
         }
 
         let lookup = memory.get(self.program_counter).wrapping_add(self.index_y);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address = lookup as u16;
 
         let value = memory.get(address);
@@ -674,14 +674,14 @@ impl CPU {
 
     fn xind_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::XInd);
             self.cycle += 6;
             return;
         }
 
         let lookup = memory.get(self.program_counter).wrapping_add(self.index_x);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let address = u16::from_le_bytes([
             memory.get(lookup as u16),
@@ -693,55 +693,55 @@ impl CPU {
 
     fn abs_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Abs);
             self.cycle += 4;
             return;
         }
 
         let lo = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let hi = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address = u16::from_le_bytes([lo, hi]);
         memory.set(address, register);
     }
 
     fn absx_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::AbsX);
             self.cycle += 5;
             return;
         }
 
         let lo = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let hi = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address = u16::from_le_bytes([lo, hi]) + self.index_x as u16;
         memory.set(address, register);
     }
 
     fn absy_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::AbsY);
             self.cycle += 5;
             return;
         }
 
         let lo = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let hi = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
         let address = u16::from_le_bytes([lo, hi]) + self.index_y as u16;
         memory.set(address, register);
     }
 
     fn indy_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::IndY);
             self.cycle += 6;
 
@@ -752,7 +752,7 @@ impl CPU {
         let lo = memory.get(lookup as u16);
         let hi = memory.get(lookup.wrapping_add(1) as u16);
 
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         let address = u16::from_le_bytes([lo, hi]) + self.index_y as u16;
 
@@ -761,42 +761,42 @@ impl CPU {
 
     fn zpg_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Zpg);
             self.cycle += 3;
             return;
         }
 
         let address = memory.get(self.program_counter) as u16;
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         memory.set(address, register);
     }
 
     fn zpgx_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::ZpgX);
             self.cycle += 4;
             return;
         }
 
         let address = (memory.get(self.program_counter).wrapping_add(self.index_x)) as u16;
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         memory.set(address, register);
     }
 
     fn zpgy_w(&mut self, memory: &mut Memory, emulator_cycle: u64, register: u8) {
         if self.cycle == emulator_cycle {
-            self.program_counter -= 1;
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::ZpgY);
             self.cycle += 4;
             return;
         }
 
         let address = (memory.get(self.program_counter).wrapping_add(self.index_y)) as u16;
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         memory.set(address, register);
     }
@@ -804,8 +804,9 @@ impl CPU {
     fn branch(&mut self, memory: &mut Memory, emulator_cycle: u64, condition: bool) {
         let offset = memory.get(self.program_counter);
         if self.cycle == emulator_cycle {
-            let (_, overflow) = ((self.program_counter + 1) as u8).overflowing_add(offset);
-            self.program_counter -= 1;
+            let (_, overflow) =
+                ((self.program_counter.wrapping_add(1)) as u8).overflowing_add(offset);
+            self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Rel);
             if !condition {
                 self.cycle += 2;
@@ -819,13 +820,13 @@ impl CPU {
             return;
         }
 
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         if !condition {
             return;
         }
 
-        self.program_counter += offset as u16;
+        self.program_counter = self.program_counter.wrapping_add(offset as u16);
     }
 
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) -> Result<(), String> {
@@ -837,7 +838,7 @@ impl CPU {
         let mut interrupt_value = false;
 
         let op = memory.get(self.program_counter);
-        self.program_counter += 1;
+        self.program_counter = self.program_counter.wrapping_add(1);
 
         match OP::from(op) {
             OP::ADC_X_ind
@@ -956,29 +957,29 @@ impl CPU {
 
             OP::BRK_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 7;
                     return Ok(());
                 }
 
-                self.program_counter += 1;
+                self.program_counter = self.program_counter.wrapping_add(1);
 
                 memory.set(
                     0x100 + self.stack_pointer as u16,
                     (self.program_counter >> 8) as u8,
                 );
-                self.stack_pointer -= 1;
+                self.stack_pointer = self.stack_pointer.wrapping_sub(1);
                 memory.set(
                     0x100 + self.stack_pointer as u16,
                     self.program_counter as u8,
                 );
-                self.stack_pointer -= 1;
+                self.stack_pointer = self.stack_pointer.wrapping_sub(1);
                 memory.set(
                     0x100 + self.stack_pointer as u16,
                     self.status_register & 0b11101111,
                 );
-                self.stack_pointer -= 1;
+                self.stack_pointer = self.stack_pointer.wrapping_sub(1);
                 self.set_flag_interrupt_disable(true);
 
                 self.program_counter = u16::from_le_bytes([memory.get(0xFFFE), memory.get(0xFFFF)]);
@@ -990,7 +991,7 @@ impl CPU {
 
             OP::CLC_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1000,7 +1001,7 @@ impl CPU {
 
             OP::CLD_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1010,7 +1011,7 @@ impl CPU {
 
             OP::CLI_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1021,7 +1022,7 @@ impl CPU {
 
             OP::CLV_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1114,7 +1115,7 @@ impl CPU {
 
             OP::DEX_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1126,7 +1127,7 @@ impl CPU {
 
             OP::DEY_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1181,7 +1182,7 @@ impl CPU {
 
             OP::INX_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1193,7 +1194,7 @@ impl CPU {
 
             OP::INY_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1226,7 +1227,7 @@ impl CPU {
 
             OP::JMP_abs => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Abs);
                     self.cycle += 3;
                     return Ok(());
@@ -1234,19 +1235,19 @@ impl CPU {
 
                 self.program_counter = u16::from_le_bytes([
                     memory.get(self.program_counter),
-                    memory.get(self.program_counter + 1),
+                    memory.get(self.program_counter.wrapping_add(1)),
                 ]);
             }
             OP::JMP_ind => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Ind);
                     self.cycle += 5;
                     return Ok(());
                 }
 
                 let lo = memory.get(self.program_counter);
-                let hi = memory.get(self.program_counter + 1);
+                let hi = memory.get(self.program_counter.wrapping_add(1));
 
                 let jump_lo = memory.get(u16::from_le_bytes([lo, hi]));
                 let jump_hi = memory.get(u16::from_le_bytes([lo.wrapping_add(1), hi]));
@@ -1256,26 +1257,26 @@ impl CPU {
 
             OP::JSR_abs => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Abs);
                     self.cycle += 6;
                     return Ok(());
                 }
 
                 let lo = memory.get(self.program_counter);
-                self.program_counter += 1;
+                self.program_counter = self.program_counter.wrapping_add(1);
                 let hi = memory.get(self.program_counter);
 
                 memory.set(
                     0x100 + self.stack_pointer as u16,
                     (self.program_counter >> 8) as u8,
                 );
-                self.stack_pointer -= 1;
+                self.stack_pointer = self.stack_pointer.wrapping_sub(1);
                 memory.set(
                     0x100 + self.stack_pointer as u16,
                     self.program_counter as u8,
                 );
-                self.stack_pointer -= 1;
+                self.stack_pointer = self.stack_pointer.wrapping_sub(1);
 
                 let address = u16::from_le_bytes([lo, hi]);
                 self.program_counter = address;
@@ -1373,41 +1374,75 @@ impl CPU {
 
             OP::LXA_imm => return Err(format!("{:#04X}", op)),
 
-            OP::NOP_abs_0xc => return Err(format!("{:#04X}", op)),
-            OP::NOP_abs_X_0x1c => return Err(format!("{:#04X}", op)),
-            OP::NOP_abs_X_0x3c => return Err(format!("{:#04X}", op)),
-            OP::NOP_abs_X_0x5c => return Err(format!("{:#04X}", op)),
-            OP::NOP_abs_X_0x7c => return Err(format!("{:#04X}", op)),
-            OP::NOP_abs_X_0xdc => return Err(format!("{:#04X}", op)),
-            OP::NOP_abs_X_0xfc => return Err(format!("{:#04X}", op)),
-            OP::NOP_imm_0x80 => return Err(format!("{:#04X}", op)),
-            OP::NOP_imm_0x82 => return Err(format!("{:#04X}", op)),
-            OP::NOP_imm_0x89 => return Err(format!("{:#04X}", op)),
-            OP::NOP_imm_0xc2 => return Err(format!("{:#04X}", op)),
-            OP::NOP_imm_0xe2 => return Err(format!("{:#04X}", op)),
-            OP::NOP_impl_0x1a => return Err(format!("{:#04X}", op)),
-            OP::NOP_impl_0x3a => return Err(format!("{:#04X}", op)),
-            OP::NOP_impl_0x5a => return Err(format!("{:#04X}", op)),
-            OP::NOP_impl_0x7a => return Err(format!("{:#04X}", op)),
-            OP::NOP_impl_0xda => return Err(format!("{:#04X}", op)),
-            OP::NOP_impl_0xea => {
+            OP::NOP_abs_0xc => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
+                    self.log_instr(memory, OPMode::Impl);
+                    self.cycle += 4;
+                    return Ok(());
+                }
+                self.program_counter = self.program_counter.wrapping_add(3);
+            }
+            OP::NOP_abs_X_0x1c
+            | OP::NOP_abs_X_0x3c
+            | OP::NOP_abs_X_0x5c
+            | OP::NOP_abs_X_0x7c
+            | OP::NOP_abs_X_0xdc
+            | OP::NOP_abs_X_0xfc => {
+                if self.absx_r(memory, emulator_cycle, 0, |_, __| 0).is_none() {
+                    return Ok(());
+                }
+            }
+            OP::NOP_imm_0x80
+            | OP::NOP_imm_0x82
+            | OP::NOP_imm_0x89
+            | OP::NOP_imm_0xc2
+            | OP::NOP_imm_0xe2 => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter = self.program_counter.wrapping_sub(1);
+                    self.log_instr(memory, OPMode::Imm);
+                    self.cycle += 2;
+                    return Ok(());
+                }
+                self.program_counter = self.program_counter.wrapping_add(1);
+            }
+            OP::NOP_impl_0x1a
+            | OP::NOP_impl_0x3a
+            | OP::NOP_impl_0x5a
+            | OP::NOP_impl_0x7a
+            | OP::NOP_impl_0xda
+            | OP::NOP_impl_0xea
+            | OP::NOP_impl_0xfa => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
                 }
             }
-            OP::NOP_impl_0xfa => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_0x4 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_0x44 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_0x64 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_X_0x14 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_X_0x34 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_X_0x54 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_X_0x74 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_X_0xd4 => return Err(format!("{:#04X}", op)),
-            OP::NOP_zpg_X_0xf4 => return Err(format!("{:#04X}", op)),
+            OP::NOP_zpg_0x4 | OP::NOP_zpg_0x44 | OP::NOP_zpg_0x64 => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter = self.program_counter.wrapping_sub(1);
+                    self.log_instr(memory, OPMode::Zpg);
+                    self.cycle += 3;
+                    return Ok(());
+                }
+                self.program_counter = self.program_counter.wrapping_add(1);
+            }
+            OP::NOP_zpg_X_0x14
+            | OP::NOP_zpg_X_0x34
+            | OP::NOP_zpg_X_0x54
+            | OP::NOP_zpg_X_0x74
+            | OP::NOP_zpg_X_0xd4
+            | OP::NOP_zpg_X_0xf4 => {
+                if self.cycle == emulator_cycle {
+                    self.program_counter = self.program_counter.wrapping_sub(1);
+                    self.log_instr(memory, OPMode::ZpgX);
+                    self.cycle += 4;
+                    return Ok(());
+                }
+                self.program_counter = self.program_counter.wrapping_add(1);
+            }
 
             OP::ORA_X_ind
             | OP::ORA_abs
@@ -1439,18 +1474,18 @@ impl CPU {
 
             OP::PHA_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 3;
                     return Ok(());
                 }
                 memory.set(0x100 + self.stack_pointer as u16, self.accumulator);
-                self.stack_pointer -= 1;
+                self.stack_pointer = self.stack_pointer.wrapping_sub(1);
             }
 
             OP::PHP_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 3;
                     return Ok(());
@@ -1459,17 +1494,17 @@ impl CPU {
                     0x100 + self.stack_pointer as u16,
                     self.status_register | 0b0011_0000,
                 );
-                self.stack_pointer -= 1;
+                self.stack_pointer = self.stack_pointer.wrapping_sub(1);
             }
 
             OP::PLA_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 4;
                     return Ok(());
                 }
-                self.stack_pointer += 1;
+                self.stack_pointer = self.stack_pointer.wrapping_add(1);
                 self.accumulator = memory.get(0x100 + self.stack_pointer as u16);
                 self.set_flag_zero(self.accumulator == 0);
                 self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
@@ -1477,12 +1512,12 @@ impl CPU {
 
             OP::PLP_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 4;
                     return Ok(());
                 }
-                self.stack_pointer += 1;
+                self.stack_pointer = self.stack_pointer.wrapping_add(1);
                 self.status_register = self.status_register & 0b0000_0100
                     | memory.get(0x100 + self.stack_pointer as u16) & 0b1110_1011;
                 self.status_register |= 0b0010_0000;
@@ -1544,31 +1579,31 @@ impl CPU {
 
             OP::RTI_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 6;
                     return Ok(());
                 }
-                self.stack_pointer += 1;
+                self.stack_pointer = self.stack_pointer.wrapping_add(1);
                 self.status_register = memory.get(0x100 + self.stack_pointer as u16) & 0b1110_1111;
                 self.status_register |= 0b0010_0000;
-                self.stack_pointer += 1;
+                self.stack_pointer = self.stack_pointer.wrapping_add(1);
                 let lo = memory.get(0x100 + self.stack_pointer as u16);
-                self.stack_pointer += 1;
+                self.stack_pointer = self.stack_pointer.wrapping_add(1);
                 let hi = memory.get(0x100 + self.stack_pointer as u16);
                 self.program_counter = u16::from_le_bytes([lo, hi]);
             }
 
             OP::RTS_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 6;
                     return Ok(());
                 }
-                self.stack_pointer += 1;
+                self.stack_pointer = self.stack_pointer.wrapping_add(1);
                 let lo = memory.get(0x100 + self.stack_pointer as u16);
-                self.stack_pointer += 1;
+                self.stack_pointer = self.stack_pointer.wrapping_add(1);
                 let hi = memory.get(0x100 + self.stack_pointer as u16);
                 self.program_counter = u16::from_le_bytes([lo, hi]) + 1;
             }
@@ -1615,7 +1650,7 @@ impl CPU {
 
             OP::SEC_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1625,7 +1660,7 @@ impl CPU {
 
             OP::SED_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1635,7 +1670,7 @@ impl CPU {
 
             OP::SEI_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1687,7 +1722,7 @@ impl CPU {
 
             OP::TAX_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1699,7 +1734,7 @@ impl CPU {
 
             OP::TAY_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1711,7 +1746,7 @@ impl CPU {
 
             OP::TSX_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1723,7 +1758,7 @@ impl CPU {
 
             OP::TXA_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1735,7 +1770,7 @@ impl CPU {
 
             OP::TXS_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1745,7 +1780,7 @@ impl CPU {
 
             OP::TYA_impl => {
                 if self.cycle == emulator_cycle {
-                    self.program_counter -= 1;
+                    self.program_counter = self.program_counter.wrapping_sub(1);
                     self.log_instr(memory, OPMode::Impl);
                     self.cycle += 2;
                     return Ok(());
@@ -1763,17 +1798,17 @@ impl CPU {
                 0x100 + self.stack_pointer as u16,
                 (self.program_counter >> 8) as u8,
             );
-            self.stack_pointer -= 1;
+            self.stack_pointer = self.stack_pointer.wrapping_sub(1);
             memory.set(
                 0x100 + self.stack_pointer as u16,
                 self.program_counter as u8,
             );
-            self.stack_pointer -= 1;
+            self.stack_pointer = self.stack_pointer.wrapping_sub(1);
             memory.set(
                 0x100 + self.stack_pointer as u16,
                 self.status_register & 0b11101111,
             );
-            self.stack_pointer -= 1;
+            self.stack_pointer = self.stack_pointer.wrapping_sub(1);
             self.set_flag_interrupt_disable(true);
 
             if self.nmi {
