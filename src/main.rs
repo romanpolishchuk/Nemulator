@@ -22,13 +22,30 @@ impl Emulator {
             self.cpu.cycle(&mut self.memory, self.cpu_cycle).unwrap();
             self.cpu_cycle += 1;
         }
-        ppu_cycle(&mut self.memory, self.ppu_cycle, d);
+        //ppu_cycle(&mut self.memory, self.ppu_cycle, d);
         self.ppu_cycle += 1;
+    }
+
+    fn draw_debug(&self, d: &mut RaylibDrawHandle) {
+        // Draw pattern table
+        for tile_index in 0..256 {
+            for y in 0..8 {
+                let index = tile_index * 16 + y;
+                let pat_lo = self.memory.ppu_get(index);
+                let pat_hi = self.memory.ppu_get(index + 8);
+                for x in 0..8 {
+                    let pixel_color = if (pat_lo & (0b1000_0000 >> x)) != 0 { 1 } else { 0 } + if (pat_hi & (0b1000_0000 >> x)) != 0 { 2 } else { 0 };
+                    let color = Color { r: 85 * pixel_color, g: 85 * pixel_color, b: 85 * pixel_color, a: 255 };
+                    //let color = Color { r: tile_index as u8, g: x * 16, b: y as u8 * 16, a: 255 };
+                    d.draw_rectangle(((tile_index as i32 % 16) * 8 + x as i32 + 341) * 2, (y as i32 + (tile_index as i32 / 16) * 8) * 2, 2, 2, color);
+                }
+            }
+        }
     }
 }
 
 fn main() {
-    let file = rom_reader::read_file("./assets/tests/color_test.nes");
+    let file = rom_reader::read_file("./assets/tests/nestest.nes");
     let mut memory = Memory::new(
         vec![0; 0x800],
         PPURegisters::new(),
@@ -45,7 +62,7 @@ fn main() {
     };
 
     let (mut rl, thread) = raylib::init()
-        .size(341 * 2, 262 * 2)
+        .size((341 + 8*16) * 2, 262 * 2)
         .title("Hello, World")
         .build();
 
@@ -53,8 +70,9 @@ fn main() {
 
     while !rl.window_should_close() {
         let mut d = rl.begin_drawing(&thread);
-        for i in 0..(341 * 262) {
+        for _ in 0..(341 * 262) {
             emulator.cycle(&mut d);
         }
+        emulator.draw_debug(&mut d);
     }
 }

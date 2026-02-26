@@ -151,6 +151,9 @@ pub fn ppu_cycle(memory: &mut Memory, cycle: u64, d: &mut RaylibDrawHandle) {
         .ppu_get(0x3f00 + memory.ppu_registers.draw_attr_table as u16 * 4 + pixel_data as u16);
     let debug_color: u32 = (palette_color as u32).wrapping_mul(364353);
 
+    //let debug_color = scanline * 256 + pixel;
+
+    //println!("{} {} {} {} {}", (pixel * 2) as i32, (scanline * 2) as i32, (debug_color % 256) as u8, ((debug_color / 256) % 256) as u8, ((debug_color / 256 / 256) % 256) as u8);
     d.draw_rectangle(
         (pixel * 2) as i32,
         (scanline * 2) as i32,

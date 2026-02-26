@@ -40,11 +40,12 @@ impl Memory {
     }
 
     pub fn ppu_get(&self, address: u16) -> u8 {
+        let address = address % 0x4000;
         match address {
             0x0000..=0x1FFF => self.chr_rom[address as usize],
             0x2000..=0x3EFF => self.vram[((address - 0x2000) % 2048) as usize],
             0x3F00..=0x3FFF => self.palettes[(address & 0b0001_1111) as usize],
-            _ => 0,
+            _ => panic!("Invalid ppu address: {:X}", address),
         }
     }
 

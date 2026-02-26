@@ -359,6 +359,111 @@ impl CPU {
         Some((value, result))
     }
 
+    fn xind_rmw<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.program_counter = self.program_counter.wrapping_sub(1);
+            self.log_instr(memory, OPMode::XInd);
+            self.cycle += 8;
+            return None;
+        }
+
+        let mut lookup = memory.get(self.program_counter);
+        self.program_counter = self.program_counter.wrapping_add(1);
+
+        lookup = lookup.wrapping_add(self.index_x);
+
+        let address = u16::from_le_bytes([
+            memory.get(lookup as u16),
+            memory.get(lookup.wrapping_add(1) as u16),
+        ]);
+
+        let value = memory.get(address);
+        let result = callback(value);
+
+        memory.set(address, result);
+
+        Some((value, result))
+    }
+
+    fn absy_rmw<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.program_counter = self.program_counter.wrapping_sub(1);
+            self.log_instr(memory, OPMode::AbsY);
+
+            self.cycle += 7;
+            return None;
+        }
+
+        let address_lb = memory.get(self.program_counter);
+        self.program_counter = self.program_counter.wrapping_add(1);
+        let address_hb = memory.get(self.program_counter);
+        self.program_counter = self.program_counter.wrapping_add(1);
+
+        let mut address = u16::from_le_bytes([address_lb, address_hb]);
+        address = address.wrapping_add(self.index_y as u16);
+
+        let value = memory.get(address);
+        let result = callback(memory.get(address));
+
+        memory.set(address, result);
+
+        Some((value, result))
+    }
+
+    fn indy_rmw<F>(
+        &mut self,
+        memory: &mut Memory,
+        emulator_cycle: u64,
+        callback: F,
+    ) -> Option<(u8, u8)>
+    where
+        F: Fn(u8) -> u8,
+    {
+        if self.cycle == emulator_cycle {
+            self.program_counter = self.program_counter.wrapping_sub(1);
+            self.log_instr(memory, OPMode::IndY);
+
+            self.cycle += 8;
+            return None;
+        }
+
+        let lookup = memory.get(self.program_counter);
+        let mut lo = memory.get(lookup as u16);
+        let mut hi = memory.get(lookup.wrapping_add(1) as u16);
+        let overflow: bool;
+        (lo, overflow) = lo.overflowing_add(self.index_y);
+        if overflow {
+            hi = hi.wrapping_add(1);
+        }
+
+        self.program_counter = self.program_counter.wrapping_add(1);
+
+        let address = u16::from_le_bytes([lo, hi]);
+
+        let value = memory.get(address);
+        let result = callback(memory.get(address));
+
+        memory.set(address, result);
+
+        Some((value, result))
+    }
+
     fn acc<F>(&mut self, memory: &mut Memory, emulator_cycle: u64, callback: F) -> Option<(u8, u8)>
     where
         F: Fn(u8) -> u8,
@@ -1097,13 +1202,30 @@ impl CPU {
                 }
             }
 
-            OP::DCP_X_ind => return Err(format!("{:#04X}", op)),
-            OP::DCP_abs => return Err(format!("{:#04X}", op)),
-            OP::DCP_abs_X => return Err(format!("{:#04X}", op)),
-            OP::DCP_abs_Y => return Err(format!("{:#04X}", op)),
-            OP::DCP_ind_Y => return Err(format!("{:#04X}", op)),
-            OP::DCP_zpg => return Err(format!("{:#04X}", op)),
-            OP::DCP_zpg_X => return Err(format!("{:#04X}", op)),
+            OP::DCP_X_ind |
+            OP::DCP_abs |
+            OP::DCP_abs_X |
+            OP::DCP_abs_Y |
+            OP::DCP_ind_Y |
+            OP::DCP_zpg |
+            OP::DCP_zpg_X => {
+                let callback = |x: u8| x.wrapping_sub(1);
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::DCP_X_ind => self.xind_rmw(memory, emulator_cycle, callback),
+                    OP::DCP_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::DCP_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::DCP_abs_Y => self.absy_rmw(memory, emulator_cycle, callback),
+                    OP::DCP_ind_Y => self.indy_rmw(memory, emulator_cycle, callback),
+                    OP::DCP_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::DCP_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
+                } {
+                    self.set_flag_carry(self.accumulator >= result);
+                    self.set_flag_zero(self.accumulator == result);
+                    self.set_flag_negative(self.accumulator.wrapping_sub(result) & 0b1000_0000 != 0);
+                } else {
+                    return Ok(());
+                }
+            }
 
             OP::DEC_abs | OP::DEC_abs_X | OP::DEC_zpg | OP::DEC_zpg_X => {
                 let callback = |x: u8| x.wrapping_sub(1);
@@ -1211,13 +1333,36 @@ impl CPU {
                 self.set_flag_negative(self.index_y & 0b1000_0000 != 0);
             }
 
-            OP::ISC_X_ind => return Err(format!("{:#04X}", op)),
-            OP::ISC_abs => return Err(format!("{:#04X}", op)),
-            OP::ISC_abs_X => return Err(format!("{:#04X}", op)),
-            OP::ISC_abs_Y => return Err(format!("{:#04X}", op)),
-            OP::ISC_ind_Y => return Err(format!("{:#04X}", op)),
-            OP::ISC_zpg => return Err(format!("{:#04X}", op)),
-            OP::ISC_zpg_X => return Err(format!("{:#04X}", op)),
+            OP::ISC_X_ind |
+            OP::ISC_abs |
+            OP::ISC_abs_X |
+            OP::ISC_abs_Y |
+            OP::ISC_ind_Y |
+            OP::ISC_zpg |
+            OP::ISC_zpg_X => {
+                let callback = |x: u8| x.wrapping_add(1);
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::ISC_X_ind => self.xind_rmw(memory, emulator_cycle, callback),
+                    OP::ISC_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::ISC_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::ISC_abs_Y => self.absy_rmw(memory, emulator_cycle, callback),
+                    OP::ISC_ind_Y => self.indy_rmw(memory, emulator_cycle, callback),
+                    OP::ISC_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::ISC_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
+                } {
+                    let offset: u8 = if self.get_flag_carry() { 0 } else { 1 };
+                    let register = self.accumulator;
+                    self.accumulator = self.accumulator.wrapping_sub(result).wrapping_sub(offset);
+                    self.set_flag_carry(self.accumulator <= register);
+                    self.set_flag_zero(self.accumulator == 0);
+                    self.set_flag_overflow(
+                        (self.accumulator ^ register) & (self.accumulator ^ !value) & 0b1000_0000 != 0,
+                    );
+                    self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+                } else {
+                    return Ok(());
+                }
+            }
 
             OP::JAM_0x12 => return Err(format!("{:#04X}", op)),
             OP::JAM_0x2 => return Err(format!("{:#04X}", op)),
@@ -1311,12 +1456,14 @@ impl CPU {
                     self.index_x = result;
                     self.set_flag_zero(result == 0);
                     self.set_flag_negative(result & 0b1000_0000 != 0);
+                } else {
+                    return Ok(());
                 }
             }
 
             OP::LDA_X_ind
             | OP::LDA_abs
-            | OP::LDA_abs_X
+            | OP::LDA_abs_X 
             | OP::LDA_abs_Y
             | OP::LDA_imm
             | OP::LDA_ind_Y
@@ -1548,13 +1695,32 @@ impl CPU {
                 interrupt_value = memory.get(0x100 + self.stack_pointer as u16) & 0b0000_0100 != 0;
             }
 
-            OP::RLA_X_ind => return Err(format!("{:#04X}", op)),
-            OP::RLA_abs => return Err(format!("{:#04X}", op)),
-            OP::RLA_abs_X => return Err(format!("{:#04X}", op)),
-            OP::RLA_abs_Y => return Err(format!("{:#04X}", op)),
-            OP::RLA_ind_Y => return Err(format!("{:#04X}", op)),
-            OP::RLA_zpg => return Err(format!("{:#04X}", op)),
-            OP::RLA_zpg_X => return Err(format!("{:#04X}", op)),
+            OP::RLA_X_ind |
+            OP::RLA_abs |
+            OP::RLA_abs_X |
+            OP::RLA_abs_Y |
+            OP::RLA_ind_Y |
+            OP::RLA_zpg |
+            OP::RLA_zpg_X => {
+                let carry = self.get_flag_carry();
+                let callback = |x| (x << 1) | carry as u8;
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::RLA_X_ind => self.xind_rmw(memory, emulator_cycle, callback),
+                    OP::RLA_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::RLA_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::RLA_abs_Y => self.absy_rmw(memory, emulator_cycle, callback),
+                    OP::RLA_ind_Y => self.indy_rmw(memory, emulator_cycle, callback),
+                    OP::RLA_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::RLA_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
+                } {
+                    self.accumulator = self.accumulator & result;
+                    self.set_flag_zero(self.accumulator == 0);
+                    self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+                    self.set_flag_carry(value & 0b1000_0000 != 0);
+                } else {
+                    return Ok(());
+                }
+            }
 
             OP::ROL_A | OP::ROL_abs | OP::ROL_abs_X | OP::ROL_zpg | OP::ROL_zpg_X => {
                 let carry = self.get_flag_carry();
@@ -1592,13 +1758,37 @@ impl CPU {
                 }
             }
 
-            OP::RRA_X_ind => return Err(format!("{:#04X}", op)),
-            OP::RRA_abs => return Err(format!("{:#04X}", op)),
-            OP::RRA_abs_X => return Err(format!("{:#04X}", op)),
-            OP::RRA_abs_Y => return Err(format!("{:#04X}", op)),
-            OP::RRA_ind_Y => return Err(format!("{:#04X}", op)),
-            OP::RRA_zpg => return Err(format!("{:#04X}", op)),
-            OP::RRA_zpg_X => return Err(format!("{:#04X}", op)),
+            OP::RRA_X_ind |
+            OP::RRA_abs |
+            OP::RRA_abs_X |
+            OP::RRA_abs_Y |
+            OP::RRA_ind_Y |
+            OP::RRA_zpg |
+            OP::RRA_zpg_X => {
+                let carry = self.get_flag_carry();
+                let callback = |x| (x >> 1) | ((carry as u8) << 7);
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::RRA_X_ind => self.xind_rmw(memory, emulator_cycle, callback),
+                    OP::RRA_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::RRA_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::RRA_abs_Y => self.absy_rmw(memory, emulator_cycle, callback),
+                    OP::RRA_ind_Y => self.indy_rmw(memory, emulator_cycle, callback),
+                    OP::RRA_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::RRA_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
+                } {
+                    let offset: u8 = if value & 0b0000_0001 != 0 { 1 } else { 0 };
+                    let register = self.accumulator;
+                    self.accumulator = self.accumulator.wrapping_add(result).wrapping_add(offset);
+                    self.set_flag_carry(self.accumulator < register);
+                    self.set_flag_zero(self.accumulator == 0);
+                    self.set_flag_overflow(
+                        (self.accumulator ^ register) & (self.accumulator ^ result) & 0b1000_0000 != 0,
+                    );
+                    self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+                } else {
+                    return Ok(());
+                }
+            }
 
             OP::RTI_impl => {
                 if self.cycle == emulator_cycle {
@@ -1631,10 +1821,10 @@ impl CPU {
                 self.program_counter = u16::from_le_bytes([lo, hi]) + 1;
             }
 
-            OP::SAX_X_ind => return Err(format!("{:#04X}", op)),
-            OP::SAX_abs => return Err(format!("{:#04X}", op)),
-            OP::SAX_zpg => return Err(format!("{:#04X}", op)),
-            OP::SAX_zpg_Y => return Err(format!("{:#04X}", op)),
+            OP::SAX_X_ind => self.xind_w(memory, emulator_cycle, self.accumulator & self.index_x),
+            OP::SAX_abs => self.abs_w(memory, emulator_cycle, self.accumulator & self.index_x),
+            OP::SAX_zpg => self.zpg_w(memory, emulator_cycle, self.accumulator & self.index_x),
+            OP::SAX_zpg_Y => self.zpgy_w(memory, emulator_cycle, self.accumulator & self.index_x),
 
             OP::SBC_X_ind
             | OP::SBC_abs
@@ -1709,21 +1899,57 @@ impl CPU {
 
             OP::SHY_abs_X => return Err(format!("{:#04X}", op)),
 
-            OP::SLO_X_ind => return Err(format!("{:#04X}", op)),
-            OP::SLO_abs => return Err(format!("{:#04X}", op)),
-            OP::SLO_abs_X => return Err(format!("{:#04X}", op)),
-            OP::SLO_abs_Y => return Err(format!("{:#04X}", op)),
-            OP::SLO_ind_Y => return Err(format!("{:#04X}", op)),
-            OP::SLO_zpg => return Err(format!("{:#04X}", op)),
-            OP::SLO_zpg_X => return Err(format!("{:#04X}", op)),
+            OP::SLO_X_ind |
+            OP::SLO_abs |
+            OP::SLO_abs_X |
+            OP::SLO_abs_Y |
+            OP::SLO_ind_Y |
+            OP::SLO_zpg |
+            OP::SLO_zpg_X => {
+                let callback = |x| x << 1;
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::SLO_X_ind => self.xind_rmw(memory, emulator_cycle, callback),
+                    OP::SLO_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::SLO_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::SLO_abs_Y => self.absy_rmw(memory, emulator_cycle, callback),
+                    OP::SLO_ind_Y => self.indy_rmw(memory, emulator_cycle, callback),
+                    OP::SLO_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::SLO_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
+                } {
+                    self.accumulator = self.accumulator | result;
+                    self.set_flag_zero(self.accumulator == 0);
+                    self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+                    self.set_flag_carry(value & 0b1000_0000 != 0);
+                } else {
+                    return Ok(());
+                }
+            }
 
-            OP::SRE_X_ind => return Err(format!("{:#04X}", op)),
-            OP::SRE_abs => return Err(format!("{:#04X}", op)),
-            OP::SRE_abs_X => return Err(format!("{:#04X}", op)),
-            OP::SRE_abs_Y => return Err(format!("{:#04X}", op)),
-            OP::SRE_ind_Y => return Err(format!("{:#04X}", op)),
-            OP::SRE_zpg => return Err(format!("{:#04X}", op)),
-            OP::SRE_zpg_X => return Err(format!("{:#04X}", op)),
+            OP::SRE_X_ind |
+            OP::SRE_abs |
+            OP::SRE_abs_X |
+            OP::SRE_abs_Y |
+            OP::SRE_ind_Y |
+            OP::SRE_zpg |
+            OP::SRE_zpg_X => {
+                let callback = |x| x >> 1;
+                if let Some((value, result)) = match OP::from(op) {
+                    OP::SRE_X_ind => self.xind_rmw(memory, emulator_cycle, callback),
+                    OP::SRE_abs => self.abs_rmw(memory, emulator_cycle, callback),
+                    OP::SRE_abs_X => self.absx_rmw(memory, emulator_cycle, callback),
+                    OP::SRE_abs_Y => self.absy_rmw(memory, emulator_cycle, callback),
+                    OP::SRE_ind_Y => self.indy_rmw(memory, emulator_cycle, callback),
+                    OP::SRE_zpg => self.zpg_rmw(memory, emulator_cycle, callback),
+                    OP::SRE_zpg_X | _ => self.zpgx_rmw(memory, emulator_cycle, callback),
+                } {
+                    self.accumulator = self.accumulator ^ result;
+                    self.set_flag_carry(value & 0b0000_0001 != 0);
+                    self.set_flag_zero(self.accumulator == 0);
+                    self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
+                } else {
+                    return Ok(());
+                }
+            }
 
             OP::STA_X_ind => self.xind_w(memory, emulator_cycle, self.accumulator),
             OP::STA_abs => self.abs_w(memory, emulator_cycle, self.accumulator),
@@ -1813,7 +2039,22 @@ impl CPU {
                 self.set_flag_negative(self.accumulator & 0b1000_0000 != 0);
             }
 
-            OP::USBC_imm => return Err(format!("{:#04X}", op)),
+            OP::USBC_imm => {
+                let offset: u8 = if self.get_flag_carry() { 0 } else { 1 };
+                let callback = |acc: u8, x: u8| acc.wrapping_sub(x).wrapping_sub(offset);
+                let register = self.accumulator;
+                if let Some((value, result)) = self.imm_r(memory, emulator_cycle, register, callback) {
+                    self.set_flag_carry(result <= register);
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_overflow(
+                        (result ^ register) & (result ^ !value) & 0b1000_0000 != 0,
+                    );
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                    self.accumulator = result;
+                } else {
+                    return Ok(());
+                }
+            }
         }
 
         if self.nmi | self.irq {
