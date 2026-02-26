@@ -1291,12 +1291,28 @@ impl CPU {
 
             OP::LAS_abs_Y => return Err(format!("{:#04X}", op)),
 
-            OP::LAX_X_ind => return Err(format!("{:#04X}", op)),
-            OP::LAX_abs => return Err(format!("{:#04X}", op)),
-            OP::LAX_abs_Y => return Err(format!("{:#04X}", op)),
-            OP::LAX_ind_Y => return Err(format!("{:#04X}", op)),
-            OP::LAX_zpg => return Err(format!("{:#04X}", op)),
-            OP::LAX_zpg_Y => return Err(format!("{:#04X}", op)),
+            OP::LAX_X_ind |
+            OP::LAX_abs |
+            OP::LAX_abs_Y |
+            OP::LAX_ind_Y |
+            OP::LAX_zpg |
+            OP::LAX_zpg_Y => {
+                let callback = |_, x| x;
+                let register = self.accumulator;
+                if let Some((_, result)) = match OP::from(op) {
+                    OP::LAX_X_ind => self.xind_r(memory, emulator_cycle, register, callback),
+                    OP::LAX_abs => self.abs_r(memory, emulator_cycle, register, callback),
+                    OP::LAX_abs_Y => self.absy_r(memory, emulator_cycle, register, callback),
+                    OP::LAX_ind_Y => self.indy_r(memory, emulator_cycle, register, callback),
+                    OP::LAX_zpg => self.zpg_r(memory, emulator_cycle, register, callback),
+                    OP::LAX_zpg_Y | _ => self.zpgy_r(memory, emulator_cycle, register, callback),
+                } {
+                    self.accumulator = result;
+                    self.index_x = result;
+                    self.set_flag_zero(result == 0);
+                    self.set_flag_negative(result & 0b1000_0000 != 0);
+                }
+            }
 
             OP::LDA_X_ind
             | OP::LDA_abs

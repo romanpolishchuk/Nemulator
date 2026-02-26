@@ -59,7 +59,7 @@ use crate::{Memory, cpu::CPU, rom_reader};
 
 #[test]
 fn cpu_full() {
-    let file = rom_reader::read_file("./assets/nestest.nes");
+    let file = rom_reader::read_file("./assets/tests/nestest_old.nes");
     let mut memory = Memory::new(
         vec![0; 0x800],
         PPURegisters::new(),
