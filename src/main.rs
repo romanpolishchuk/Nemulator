@@ -28,7 +28,7 @@ impl Emulator {
 }
 
 fn main() {
-    let file = rom_reader::read_file("./assets/tests/color_test.nes");
+    let file = rom_reader::read_file("./assets/tests/nestest_old.nes");
     let mut memory = Memory::new(
         vec![0; 0x800],
         PPURegisters::new(),

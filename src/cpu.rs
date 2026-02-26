@@ -802,10 +802,17 @@ impl CPU {
     }
 
     fn branch(&mut self, memory: &mut Memory, emulator_cycle: u64, condition: bool) {
-        let offset = memory.get(self.program_counter);
+        let offset = memory.get(self.program_counter) as i8;
         if self.cycle == emulator_cycle {
-            let (_, overflow) =
-                ((self.program_counter.wrapping_add(1)) as u8).overflowing_add(offset);
+            let overflow: bool;
+            if offset > 0 {
+                let (_, _overflow) =
+                    ((self.program_counter.wrapping_add(1)) as u8).overflowing_add(offset as u8);
+                overflow = _overflow;
+            } else {
+                let (_, _overflow) = ((self.program_counter.wrapping_add(1)) as u8).overflowing_sub((-offset) as u8);
+                overflow = _overflow;
+            }
             self.program_counter = self.program_counter.wrapping_sub(1);
             self.log_instr(memory, OPMode::Rel);
             if !condition {
@@ -826,7 +833,7 @@ impl CPU {
             return;
         }
 
-        self.program_counter = self.program_counter.wrapping_add(offset as u16);
+        self.program_counter = (self.program_counter as i32 + offset as i32) as u16;
     }
 
     pub fn cycle(&mut self, memory: &mut Memory, emulator_cycle: u64) -> Result<(), String> {
@@ -1381,7 +1388,7 @@ impl CPU {
                     self.cycle += 4;
                     return Ok(());
                 }
-                self.program_counter = self.program_counter.wrapping_add(3);
+                self.program_counter = self.program_counter.wrapping_add(2);
             }
             OP::NOP_abs_X_0x1c
             | OP::NOP_abs_X_0x3c

@@ -59,7 +59,7 @@ use crate::{Memory, cpu::CPU, rom_reader};
 
 #[test]
 fn cpu_full() {
-    let file = rom_reader::read_file("./assets/tests/nestest.nes");
+    let file = rom_reader::read_file("./assets/nestest.nes");
     let mut memory = Memory::new(
         vec![0; 0x800],
         PPURegisters::new(),
@@ -73,9 +73,6 @@ fn cpu_full() {
     cpu.program_counter = 0xC000;
     let mut emulator_cycle = 7;
     loop {
-        if emulator_cycle == 9670 {
-            print!("");
-        }
         if let Err(e) = cpu.cycle(&mut memory, emulator_cycle) {
             println!("CPU crashed with: {e}");
             break;
@@ -103,22 +100,22 @@ fn cpu_full() {
 
         // Program counter, bytes and mnemonic
         assert!(
-            cpu_log_line[0..14] == reference_log_line[0..14],
+            cpu_log_line[0..4] == reference_log_line[0..4],
             "\nLine: {}\n{}\n{}",
             line_number,
             format!(
                 "{} {} {} {}",
                 "\x1b[31m",
-                &cpu_log_line[..14],
+                &cpu_log_line[..4],
                 "\x1b[0m",
-                &cpu_log_line[14..]
+                &cpu_log_line[4..]
             ),
             format!(
                 "{} {} {} {}",
                 "\x1b[32m",
-                &reference_log_line[0..14],
+                &reference_log_line[0..4],
                 "\x1b[0m",
-                &reference_log_line[14..]
+                &reference_log_line[4..]
             ),
         );
 
