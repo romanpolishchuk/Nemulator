@@ -1,6 +1,5 @@
 /target
 /assets/*
 !/assets/tests/
-log.txt
 /.vscode
 /logs
