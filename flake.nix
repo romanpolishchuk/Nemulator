@@ -1,4 +1,6 @@
 {
+description = "App";
+
 inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 };
@@ -10,31 +12,30 @@ outputs = { self, nixpkgs }:
             inherit system;
         };
 
-        commonPackages = [
-            #c/c++
-            pkgs.cmake
-            pkgs.gcc
-            pkgs.clang
-            pkgs.pkg-config
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
 
+        commonBuildInputs = [
             pkgs.glfw
 
-            #opengl
             pkgs.libGL
 
-            #wayland
             pkgs.wayland
             pkgs.libxkbcommon
 
-            #x11
             pkgs.libx11
             pkgs.libxext
             pkgs.libxcursor
             pkgs.libxrandr
             pkgs.libxi
             pkgs.libXinerama
+        ];
 
-            #rust
+        commonNativeBuildInputs = [
+            pkgs.cmake
+            pkgs.gcc
+            pkgs.clang
+            pkgs.pkg-config
+
             pkgs.cargo
             pkgs.rustc
             pkgs.rustfmt
@@ -43,7 +44,7 @@ outputs = { self, nixpkgs }:
     in {
         devShells.${system} = {
             default = pkgs.mkShell {
-                packages = commonPackages;
+                packages = commonBuildInputs ++ commonNativeBuildInputs;
 
                 LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
                     pkgs.glfw
@@ -66,7 +67,7 @@ outputs = { self, nixpkgs }:
             };
 
             ide = pkgs.mkShell {
-                packages = commonPackages ++
+                packages = commonBuildInputs ++ commonNativeBuildInputs ++
                     [(pkgs.vscode-with-extensions.override {
                         vscode = pkgs.vscodium;
                         vscodeExtensions = with pkgs.vscode-extensions; [
@@ -101,6 +102,7 @@ outputs = { self, nixpkgs }:
 
                 '';
             };
+
         };
     };
 }
